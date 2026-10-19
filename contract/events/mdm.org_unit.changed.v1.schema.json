@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://brickkit.dev/mdm-org/events/mdm.org_unit.changed.v1.schema.json",
+  "title": "mdm.org_unit.changed.v1",
+  "description": "An organization unit's (department's) complete current state; the record ID is its UUIDv7. A move changes the path of the unit and of every unit below it: each gets its own event. Also the data of SourceService for AGGREGATE_ORG_UNIT.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "legal_entity_id", "parent_id", "code", "name", "names", "path", "state", "version", "updated_at"],
+  "properties": {
+    "id": {"type": "string", "format": "uuid"},
+    "legal_entity_id": {"type": "string", "format": "uuid"},
+    "parent_id": {"type": ["string", "null"], "format": "uuid", "description": "null: a top unit of the legal entity"},
+    "code": {"type": "string", "pattern": "^[A-Z0-9][A-Z0-9_-]{0,31}$", "description": "unique within the legal entity"},
+    "name": {"type": "string", "minLength": 1},
+    "names": {"type": "object", "additionalProperties": {"type": "string", "minLength": 1}},
+    "path": {"type": "string", "pattern": "^[0-9a-f-]{36}(/[0-9a-f-]{36})+$", "description": "the org-tree fact of security 07: the legal entity's ID, then the unit IDs from the top down to this one, joined by /; compared by segment"},
+    "state": {"enum": ["active", "retired"]},
+    "version": {"type": "integer", "minimum": 1},
+    "updated_at": {"type": "string", "format": "date-time"}
+  }
+}

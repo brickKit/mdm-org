@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://brickkit.dev/mdm-org/events/mdm.legal_entity.changed.v1.schema.json",
+  "title": "mdm.legal_entity.changed.v1",
+  "description": "A legal entity's complete current state (a full-state event); the record ID is its UUIDv7. Also the data of SourceService for AGGREGATE_LEGAL_ENTITY.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "code", "name", "names", "country", "timezone", "base_currency", "fiscal_year_start_month", "state", "version", "updated_at"],
+  "properties": {
+    "id": {"type": "string", "format": "uuid"},
+    "code": {"type": "string", "pattern": "^[A-Z0-9][A-Z0-9_-]{0,31}$", "description": "unique among legal entities; never reused"},
+    "name": {"type": "string", "minLength": 1},
+    "names": {"type": "object", "additionalProperties": {"type": "string", "minLength": 1}},
+    "country": {"type": "string", "pattern": "^[A-Z]{2}$", "description": "ISO 3166-1 alpha-2"},
+    "timezone": {"type": "string", "minLength": 1, "description": "IANA time zone: the legal entity's business dates (protocol 14); explicit, never the server's"},
+    "base_currency": {"type": "string", "pattern": "^[A-Z]{3}$", "description": "the functional currency, ISO 4217"},
+    "fiscal_year_start_month": {"type": "integer", "minimum": 1, "maximum": 12},
+    "state": {"enum": ["active", "suspended", "retired"], "description": "protocol 07's lifecycle; suspended and retired take no new eligibility references"},
+    "version": {"type": "integer", "minimum": 1},
+    "updated_at": {"type": "string", "format": "date-time"}
+  }
+}

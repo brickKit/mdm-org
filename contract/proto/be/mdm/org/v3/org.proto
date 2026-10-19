@@ -1,0 +1,115 @@
+// The system surface of mdm/org: the source methods of protocol 02 (S1-S3) and the catch-up of a watermark source
+// (S6, not in step 6: it answers CAPABILITY_UNSUPPORTED). Components call it with their service identity; it never
+// filters by a user. The user surface is REST (../../../../../openapi.yaml); the event payloads are ../../../../../events/.
+syntax = "proto3";
+
+package be.mdm.org.v3;
+
+option go_package = "github.com/brickKit/mdm-org/contract/v3/gen/go/be/mdm/org/v3;orgv3";
+
+// SourceService lets a consumer build and repair a projection of legal entities and organization units (protocol 02).
+// Every answer declares the source's implementation instance, its database epoch and the stream's numbered positions
+// as of the answer's own read snapshot.
+service SourceService {
+  // Snapshot pages through every record of one aggregate in a stable order (by ID); an empty next_cursor ends it.
+  rpc Snapshot(SnapshotRequest) returns (SnapshotResponse);
+  // Read answers by ID, at most 500 IDs a call (more is refused, never cut): the current state, a tombstone, or purged.
+  rpc Read(ReadRequest) returns (ReadResponse);
+}
+
+// CatchUpService is the watermark source of protocol 02 (S6): the catch-up that is also the probe, open only to
+// service identities that declared a subscription to this source. Not in step 6: CAPABILITY_UNSUPPORTED.
+service CatchUpService {
+  rpc CatchUp(CatchUpRequest) returns (CatchUpResponse);
+}
+
+// Aggregate names one kind of record of this component; each has its event type and payload schema.
+enum Aggregate {
+  AGGREGATE_UNSPECIFIED = 0;
+  // mdm.legal_entity.changed.v1
+  AGGREGATE_LEGAL_ENTITY = 1;
+  // mdm.org_unit.changed.v1
+  AGGREGATE_ORG_UNIT = 2;
+}
+
+// Stamp is what every answer declares about the source (protocol 02, S3 and step 3).
+message Stamp {
+  string deployment = 1;
+  string instance = 2;
+  // "<recovery generation>.<timeline>"
+  string epoch = 3;
+  // per partition of the stream mdm.org, the highest numbered publish position in the answer's snapshot
+  repeated int64 positions = 4;
+}
+
+// Record is one record's complete current state.
+message Record {
+  string id = 1;
+  int64 version = 2;
+  // the canonical JSON of the record: the same payload as its event (events/<type>.schema.json)
+  bytes data = 3;
+}
+
+message SnapshotRequest {
+  Aggregate aggregate = 1;
+  string cursor = 2;
+  // 1-500; 0: 500
+  int32 limit = 3;
+}
+
+message SnapshotResponse {
+  repeated Record records = 1;
+  string next_cursor = 2;
+  Stamp stamp = 3;
+}
+
+message ReadRequest {
+  Aggregate aggregate = 1;
+  repeated string ids = 2;
+}
+
+// ReadState is one ID's answer to Read.
+enum ReadState {
+  READ_STATE_UNSPECIFIED = 0;
+  READ_STATE_EXISTS = 1;
+  // deleted; version is the deleting version (this component deletes nothing: retired records stay readable)
+  READ_STATE_TOMBSTONE = 2;
+  // nothing under that ID
+  READ_STATE_PURGED = 3;
+}
+
+message ReadResult {
+  string id = 1;
+  ReadState state = 2;
+  int64 version = 3;
+  bytes data = 4;
+}
+
+message ReadResponse {
+  // one per requested ID, in the requested order
+  repeated ReadResult results = 1;
+  Stamp stamp = 2;
+}
+
+// A position on the stream: the consumer's contiguous applied position and that row's identity (protocol 02, step 1).
+message PartitionPosition {
+  int32 partition = 1;
+  string epoch = 2;
+  int64 seq = 3;
+  // the echo's nonce, or the event's record ID, version and row digest, as the consumer stored them
+  string row_identity = 4;
+}
+
+message CatchUpRequest {
+  // the probe's nonce, written back in the echo
+  string nonce = 1;
+  // empty: only the echo (alignment's P0)
+  repeated PartitionPosition positions = 2;
+}
+
+message CatchUpResponse {
+  // the rows after each position up to the echo, as the bus carries them; the echo is on the last page only
+  repeated bytes rows = 1;
+  string next_page = 2;
+  Stamp stamp = 3;
+}

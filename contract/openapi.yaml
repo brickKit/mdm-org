@@ -1,0 +1,305 @@
+openapi: 3.1.0
+info:
+  title: mdm/org user surface
+  version: 3.0.0
+  description: >-
+    Legal entities and organization units (departments) for people and the front end. Every route needs a platform
+    access token and the operation in x-operation; what the caller may not see answers 404. Errors are
+    application/problem+json with a reason. Lists page by cursor only (protocol 14). Positions, reporting lines,
+    locations, work calendars and effective-dated changes are in the contract but not in step 6: they answer
+    CAPABILITY_UNSUPPORTED (D75).
+paths:
+  /api/org/legal-entities:
+    get:
+      operationId: listLegalEntities
+      x-operation: mdm.legal_entity.read
+      parameters:
+        - {name: state, in: query, schema: {enum: [active, suspended, retired]}}
+        - {name: q, in: query, schema: {type: string}, description: keyword over code and names}
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/limit'
+      responses:
+        '200':
+          description: one page, by code
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [legal_entities, next_cursor]
+                properties:
+                  legal_entities: {type: array, items: {$ref: '#/components/schemas/LegalEntity'}}
+                  next_cursor: {type: string}
+        default: {$ref: '#/components/responses/problem'}
+    post:
+      operationId: createLegalEntity
+      x-operation: mdm.legal_entity.manage
+      summary: Create a legal entity; the same code with the same content again returns it (409 CODE_TAKEN otherwise)
+      description: >-
+        The time zone is required: from the request, or the deployment's DEFAULT_LEGAL_ENTITY_TIMEZONE written into
+        the record; without both, 400 (protocol 14: no implicit default).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [code, name, country, base_currency]
+              properties:
+                code: {type: string}
+                name: {type: string}
+                names: {type: object, additionalProperties: {type: string}}
+                country: {type: string}
+                timezone: {type: string}
+                base_currency: {type: string}
+                fiscal_year_start_month: {type: integer, minimum: 1, maximum: 12, default: 1}
+      responses:
+        '200': {description: the legal entity, content: {application/json: {schema: {$ref: '#/components/schemas/LegalEntity'}}}}
+        default: {$ref: '#/components/responses/problem'}
+  /api/org/legal-entities/{id}:
+    parameters: [{$ref: '#/components/parameters/id'}]
+    get:
+      operationId: getLegalEntity
+      x-operation: mdm.legal_entity.read
+      responses:
+        '200': {description: the legal entity, content: {application/json: {schema: {$ref: '#/components/schemas/LegalEntity'}}}}
+        default: {$ref: '#/components/responses/problem'}
+    patch:
+      operationId: updateLegalEntity
+      x-operation: mdm.legal_entity.manage
+      summary: Change names, time zone, base currency or the fiscal year's start month
+      description: >-
+        A new time zone applies to business dates computed afterwards; documents keep their dates (protocol 14).
+        With version, only that version changes (409 VERSION_CONFLICT otherwise).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                version: {type: integer}
+                name: {type: string}
+                names: {type: object, additionalProperties: {type: string}}
+                timezone: {type: string}
+                base_currency: {type: string}
+                fiscal_year_start_month: {type: integer, minimum: 1, maximum: 12}
+      responses:
+        '200': {description: the legal entity, content: {application/json: {schema: {$ref: '#/components/schemas/LegalEntity'}}}}
+        default: {$ref: '#/components/responses/problem'}
+  /api/org/legal-entities/{id}/state:
+    parameters: [{$ref: '#/components/parameters/id'}]
+    post:
+      operationId: changeLegalEntityState
+      x-operation: mdm.legal_entity.manage
+      summary: Suspend, resume or retire (protocol 07); a retired legal entity stays retired
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [state]
+              properties:
+                state: {enum: [active, suspended, retired]}
+                version: {type: integer}
+      responses:
+        '200': {description: the legal entity, content: {application/json: {schema: {$ref: '#/components/schemas/LegalEntity'}}}}
+        default: {$ref: '#/components/responses/problem'}
+  /api/org/legal-entities/{id}/business-date:
+    parameters: [{$ref: '#/components/parameters/id'}]
+    get:
+      operationId: businessDate
+      x-operation: mdm.legal_entity.read
+      summary: The legal entity's business date at an instant (now when absent), in its time zone
+      parameters:
+        - {name: at, in: query, schema: {type: string, format: date-time}}
+      responses:
+        '200':
+          description: the date
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [date, timezone]
+                properties: {date: {type: string, format: date}, timezone: {type: string}}
+        default: {$ref: '#/components/responses/problem'}
+  /api/org/units:
+    get:
+      operationId: listUnits
+      x-operation: mdm.org_unit.read
+      parameters:
+        - {name: legal_entity_id, in: query, schema: {type: string}}
+        - {name: parent_id, in: query, schema: {type: string}, description: 'the units directly below it'}
+        - {name: state, in: query, schema: {enum: [active, retired]}}
+        - {name: q, in: query, schema: {type: string}}
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/limit'
+      responses:
+        '200':
+          description: one page, by path
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [units, next_cursor]
+                properties:
+                  units: {type: array, items: {$ref: '#/components/schemas/OrgUnit'}}
+                  next_cursor: {type: string}
+        default: {$ref: '#/components/responses/problem'}
+    post:
+      operationId: createUnit
+      x-operation: mdm.org_unit.manage
+      summary: Create a unit under a legal entity, at the top or below an active unit of the same legal entity
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [legal_entity_id, code, name]
+              properties:
+                legal_entity_id: {type: string}
+                parent_id: {type: [string, 'null']}
+                code: {type: string}
+                name: {type: string}
+                names: {type: object, additionalProperties: {type: string}}
+      responses:
+        '200': {description: the unit, content: {application/json: {schema: {$ref: '#/components/schemas/OrgUnit'}}}}
+        default: {$ref: '#/components/responses/problem'}
+  /api/org/units/{id}:
+    parameters: [{$ref: '#/components/parameters/id'}]
+    get:
+      operationId: getUnit
+      x-operation: mdm.org_unit.read
+      responses:
+        '200': {description: the unit, content: {application/json: {schema: {$ref: '#/components/schemas/OrgUnit'}}}}
+        default: {$ref: '#/components/responses/problem'}
+    patch:
+      operationId: renameUnit
+      x-operation: mdm.org_unit.manage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                version: {type: integer}
+                name: {type: string}
+                names: {type: object, additionalProperties: {type: string}}
+      responses:
+        '200': {description: the unit, content: {application/json: {schema: {$ref: '#/components/schemas/OrgUnit'}}}}
+        default: {$ref: '#/components/responses/problem'}
+  /api/org/units/{id}/move:
+    parameters: [{$ref: '#/components/parameters/id'}]
+    post:
+      operationId: moveUnit
+      x-operation: mdm.org_unit.manage
+      summary: Move a unit under another parent of the same legal entity (null for the top); never into its own subtree
+      description: >-
+        The path of the unit and of every unit below it changes in one transaction, each with a new version, an event
+        and a path history row.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [parent_id]
+              properties:
+                parent_id: {type: [string, 'null']}
+                version: {type: integer}
+      responses:
+        '200': {description: the unit, content: {application/json: {schema: {$ref: '#/components/schemas/OrgUnit'}}}}
+        default: {$ref: '#/components/responses/problem'}
+  /api/org/units/{id}/retire:
+    parameters: [{$ref: '#/components/parameters/id'}]
+    post:
+      operationId: retireUnit
+      x-operation: mdm.org_unit.manage
+      summary: Retire a unit without active units below it
+      requestBody:
+        content:
+          application/json:
+            schema: {type: object, additionalProperties: false, properties: {version: {type: integer}}}
+      responses:
+        '200': {description: the unit, content: {application/json: {schema: {$ref: '#/components/schemas/OrgUnit'}}}}
+        default: {$ref: '#/components/responses/problem'}
+  /api/org/units/{id}/ancestors:
+    parameters: [{$ref: '#/components/parameters/id'}]
+    get:
+      operationId: unitAncestors
+      x-operation: mdm.org_unit.read
+      summary: The units above this one, from the top down
+      responses:
+        '200':
+          description: the ancestors
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ancestors]
+                properties: {ancestors: {type: array, items: {$ref: '#/components/schemas/OrgUnit'}}}
+        default: {$ref: '#/components/responses/problem'}
+  /api/org/units/{id}/path-history:
+    parameters: [{$ref: '#/components/parameters/id'}]
+    get:
+      operationId: unitPathHistory
+      x-operation: mdm.org_unit.read
+      summary: Every path the unit has had, with when it began and ended (the boundary card's traceable paths)
+      responses:
+        '200':
+          description: the history, oldest first
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [history]
+                properties:
+                  history:
+                    type: array
+                    items:
+                      type: object
+                      required: [path, valid_from, valid_to]
+                      properties:
+                        path: {type: string}
+                        valid_from: {type: string, format: date-time}
+                        valid_to: {type: [string, 'null'], format: date-time}
+        default: {$ref: '#/components/responses/problem'}
+  /api/org/positions:
+    get: {operationId: listPositions, x-operation: mdm.org_unit.read, summary: 'Positions (not in step 6: CAPABILITY_UNSUPPORTED)', responses: {default: {$ref: '#/components/responses/problem'}}}
+    post: {operationId: createPosition, x-operation: mdm.org_unit.manage, summary: 'Not in step 6: CAPABILITY_UNSUPPORTED', responses: {default: {$ref: '#/components/responses/problem'}}}
+  /api/org/reporting-lines:
+    get: {operationId: listReportingLines, x-operation: mdm.org_unit.read, summary: 'Reporting lines (not in step 6: CAPABILITY_UNSUPPORTED)', responses: {default: {$ref: '#/components/responses/problem'}}}
+    post: {operationId: createReportingLine, x-operation: mdm.org_unit.manage, summary: 'Not in step 6: CAPABILITY_UNSUPPORTED', responses: {default: {$ref: '#/components/responses/problem'}}}
+  /api/org/locations:
+    get: {operationId: listLocations, x-operation: mdm.legal_entity.read, summary: 'Locations (not in step 6: CAPABILITY_UNSUPPORTED)', responses: {default: {$ref: '#/components/responses/problem'}}}
+    post: {operationId: createLocation, x-operation: mdm.legal_entity.manage, summary: 'Not in step 6: CAPABILITY_UNSUPPORTED', responses: {default: {$ref: '#/components/responses/problem'}}}
+  /api/org/legal-entities/{id}/calendar/working-day:
+    parameters: [{$ref: '#/components/parameters/id'}]
+    get: {operationId: isWorkingDay, x-operation: mdm.legal_entity.read, summary: 'Whether a date is a working day (not in step 6: CAPABILITY_UNSUPPORTED)', responses: {default: {$ref: '#/components/responses/problem'}}}
+  /api/org/legal-entities/{id}/calendar/add-working-days:
+    parameters: [{$ref: '#/components/parameters/id'}]
+    get: {operationId: addWorkingDays, x-operation: mdm.legal_entity.read, summary: 'A date plus N working days (not in step 6: CAPABILITY_UNSUPPORTED)', responses: {default: {$ref: '#/components/responses/problem'}}}
+  /api/org/changes:
+    post: {operationId: scheduleChange, x-operation: mdm.org_unit.manage, summary: 'An organization change with an effective date (not in step 6: CAPABILITY_UNSUPPORTED)', responses: {default: {$ref: '#/components/responses/problem'}}}
+components:
+  parameters:
+    id: {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+    cursor: {name: cursor, in: query, schema: {type: string}}
+    limit: {name: limit, in: query, schema: {type: integer, minimum: 1, maximum: 200, default: 50}}
+  responses:
+    problem:
+      description: an error (application/problem+json with reason)
+      content:
+        application/problem+json:
+          schema: {type: object, required: [reason], properties: {reason: {type: string}, detail: {type: string}}}
+  schemas:
+    LegalEntity: {$ref: 'events/mdm.legal_entity.changed.v1.schema.json'}
+    OrgUnit: {$ref: 'events/mdm.org_unit.changed.v1.schema.json'}
