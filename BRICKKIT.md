@@ -30,6 +30,10 @@
 
 | 键 | 说明 |
 | --- | --- |
+| `DEPLOYMENT_ID`、`IAM_ISSUER`、`IAM_JWKS_URL`、`AUTHZ_GRPC_URL`、`SERVICE_TLS_CERT_FILE`、`SERVICE_TLS_KEY_FILE`、`SERVICE_TLS_CA_FILE`（必填） | 受保护的用户面与 mTLS 的系统面要用；部署身份、身份与授权的地址在外壳里是进程级的键 |
+| `PG_HOST`、`PG_DATABASE`、`PG_USER`、`PG_PASSWORD`、`PG_SCHEMA`（必填） | 自己的数据库，密码是密钥；迁移另用 `PG_OWNER_USER`、`PG_OWNER_PASSWORD` |
+| `BUS_URL`（必填，密钥）、`IMPLEMENTATION_INSTANCE`（必填） | 消息系统；实现实例是安装时生成的随机身份，事件与来源方法的回答都带它（协议 02） |
+| `AUDIT_GRPC_URL` | 审计组件的系统面；缺时审计记录留在本地，按协议 03 处理 |
 | `DEFAULT_LEGAL_ENTITY_TIMEZONE` | 新建法人没有给时区时用的 IANA 时区，写进法人记录；不设时，没有时区的新建被拒绝。不是 IANA 时区时组件不启动 |
 
 ## 契约索引

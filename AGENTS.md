@@ -13,7 +13,7 @@
 | `org/records.go` | 记录的类型、读取与事件 |
 | `org/source.go` | 来源方法 |
 | `org/migrations/` | 表：法人、部门、路径历史 |
-| `contract/` | 本组件发布的契约，单独的模块：`proto/`、`events/`、`openapi.yaml` |
+| `contract/` | 本组件发布的契约，单独的模块：`contract/proto/`、`contract/events/`、`contract/openapi.yaml` |
 
 | 想改 | 从这里开始 | 然后 |
 | --- | --- | --- |
@@ -43,6 +43,9 @@
 - 改了契约（`contract/`）：proto 改后 `make gen`，发布 `contract/v…`，再改这里的依赖；OpenAPI 与路由由测试核对。
 - 改了版本号吗？每次改动都升版本。
 
+<!-- brickkit:managed:begin lang=zh -->
+<!-- 由 brickkit 维护（init、add、remove、upgrade、skills update）：这对标记之间的改动会被覆盖 -->
+
 ## BrickKit
 
 这是一个 BrickKit 组件：平台只读 `component.yaml`。它依赖的规则：
@@ -53,3 +56,4 @@
 - `BRICKKIT.md` 会随版本进入每个使用它的项目，在那里是脱离仓库单独读的：跟代码一起改，不放相对链接。
 - 发版：改 `metadata.version`，提交、推送，`brickkit release`。`brickkit lint` 会检查清单和这些文档——在项目里、在这个目录下跑，只查这个组件（`--all` 查整个项目）。
 - 完整规则在 `brickkit-component` 技能里（装了技能的项目或仓库根目录下的 `.claude/skills/brickkit-component/SKILL.md`；`brickkit skills update` 会装上）；参数问 `brickkit <命令> --help`；BrickKit 自己的文档用 `brickkit docs` 看。
+<!-- brickkit:managed:end -->
