@@ -13,6 +13,7 @@
 | `org/records.go` | 记录的类型、读取与事件 |
 | `org/source.go` | 来源方法 |
 | `org/migrations/` | 表：法人、部门、路径历史 |
+| `cmd/seed/` | 种子：角色与授予（含撤销、过期的反例）、法人、部门树（`make seed`） |
 | `contract/` | 本组件发布的契约，单独的模块：`contract/proto/`、`contract/events/`、`contract/openapi.yaml` |
 
 | 想改 | 从这里开始 | 然后 |
