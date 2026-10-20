@@ -4,7 +4,7 @@ package org
 
 // The organization component against PostgreSQL and the bus over its real surfaces (L2), with tokens and service
 // certificates of be-sdk-go's sectest deployment. Needs BE_SDK_TEST_PG_ADMIN and BE_SDK_TEST_NATS_URL, as be-sdk-go's
-// integration tests; missing, it fails. The member listens on 18083 (user) and 9093 (system).
+// integration tests; missing, it fails. The member listens on 28083 (user) and 9093 (system).
 // Run: go test -tags integration ./org/
 
 import (
@@ -12,6 +12,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -33,7 +34,7 @@ import (
 )
 
 const (
-	itPort   = "18083"
+	itPort   = "28083"
 	itBase   = "http://localhost:" + itPort
 	itSystem = "localhost:9093"
 	itSchema = "mdm_org_it"
@@ -97,6 +98,7 @@ func TestOrgEndToEnd(t *testing.T) {
 
 	w := sectest.New(t)
 	w.GrantAll(sectest.Alice, Definitions())
+	portFree(t, itPort, itSystem)
 	env := w.Env(t, ID)
 	for k, v := range map[string]string{"COMPONENT_ID": ID, "COMPONENT_VERSION": Version, "PORT": itPort,
 		"STOP_DRAIN_DELAY": "50ms", "PG_HOST": u.Hostname(), "PG_PORT": u.Port(), "PG_DATABASE": strings.TrimPrefix(u.Path, "/"),
@@ -234,4 +236,17 @@ func TestOrgEndToEnd(t *testing.T) {
 	e, _, ok := errs.FromGRPC(err)
 	require.True(t, ok, "%v", err)
 	assert.Equal(t, errs.ReasonCapabilityUnsupported, e.Reason)
+}
+
+// portFree fails at once when a port the member needs is taken: a running cell (host ports 18xxx) or another member
+// would answer in its place, and the test would assert against another process.
+func portFree(t *testing.T, addrs ...string) {
+	for _, a := range addrs {
+		if !strings.Contains(a, ":") {
+			a = "localhost:" + a
+		}
+		ln, err := net.Listen("tcp", a)
+		require.NoError(t, err, "port %s is taken: is a cell or another member running?", a)
+		_ = ln.Close()
+	}
 }
