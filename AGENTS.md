@@ -1,6 +1,6 @@
 # mdm/org
 
-法人与组织组件的代码。先读 `BRICKKIT.md`；依据是装配项目 be-assembly-standard 的边界卡 `docs/zh/07-components/mdm.md`（`mdm/org`）、协议 02（来源）、协议 07（生命周期）、协议 14（时间与日历、列表）、安全 07（组织树维度）。
+法人与组织组件的代码。用法与边界在 `BRICKKIT.md`，为什么这样设计（术语、数据、状态与规则、未决问题）在 [docs/design.md](docs/design.md)；跨组件的规则在装配项目 be-assembly-standard 的协议 02（来源）、协议 07（生命周期）、协议 14（时间与日历、列表）、安全 07（组织树维度）。
 
 ## 代码地图
 
@@ -15,17 +15,20 @@
 | `org/migrations/` | 表：法人、部门、路径历史 |
 | `cmd/seed/` | 种子：角色与授予（含撤销、过期的反例）、法人、部门树（`make seed`） |
 | `contract/` | 本组件发布的契约，单独的模块：`contract/proto/`、`contract/events/`、`contract/openapi.yaml` |
+| `docs/design.md` | 设计：术语、表、状态与规则、命令、事件、实现状态、未决问题 |
 
 | 想改 | 从这里开始 | 然后 |
 | --- | --- | --- |
 | 部门树的规则（无环、移动、退役） | `units.go` 的 `moveUnit`、`repath`、`retireUnit` | 集成测试的树一段 |
 | 法人的生命周期 | `module.go` 的 `entityState` | 协议 07 的状态表 |
 | 加一个用户面路由 | `contract/openapi.yaml` | `module.go` 的 `Routes`；`contract_test.go` 核对 |
+| 法人的业务日期、时区 | `module.go` 的 `businessDate` | 集成测试的 Europe/Madrid 一段 |
+| 加字段、加接口、改事件 | 装配项目 be-assembly-standard 规范里的“改动配方” | `docs/design.md` 的数据与命令 |
 
 ## 构建与测试
 
-- `go test ./...`：清单的 `configSchema`、OpenAPI 与路由、事件载荷、合并安全。
-- `go test -tags integration ./org/`：真实的 PostgreSQL 与消息系统（`BE_SDK_TEST_PG_ADMIN`、`BE_SDK_TEST_NATS_URL`），be-sdk-go 的 `sectest` 测试部署。
+- `go test ./...`（`make test`）：清单的 `configSchema` 与 `events`、OpenAPI 与路由、事件载荷、合并安全。
+- `go test -tags integration ./org/`（`make test-integration`）：真实的 PostgreSQL 与消息系统，例如 `BE_SDK_TEST_PG_ADMIN=postgres://postgres:<口令>@localhost:5432/brickkit_test_db`（装配项目 `make up` 的 `be-postgres`，口令是 `.env` 的 `POSTGRES_PASSWORD`）与 `BE_SDK_TEST_NATS_URL=nats://localhost:4222`；be-sdk-go 的 `sectest` 是测试部署。
 - `brickkit lint`
 
 ## 设计取舍
