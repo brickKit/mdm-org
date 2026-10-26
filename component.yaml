@@ -4,7 +4,7 @@ kind: Component
 metadata:
   id: mdm/org
   name: Organization
-  version: 3.0.6
+  version: 3.0.7
   description: "Legal entities (time zone, base currency, fiscal year start) and the organization units below them, whose paths are authorization's org-tree facts; full-state events and the source methods of protocol 02"
   repository: https://github.com/brickKit/mdm-org
 
