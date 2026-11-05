@@ -239,6 +239,7 @@ func TestOrgEndToEnd(t *testing.T) {
 
 	t.Run("evidence", func(t *testing.T) { evidenceStory(t, w, admin, alice, esID) })
 	t.Run("replay", func(t *testing.T) { replayStory(t, w, admin, alice, esID) })
+	t.Run("recovery checks", func(t *testing.T) { checksStory(t, w, admin, LegalEntities, esID) })
 }
 
 // portFree fails at once when a port the member needs is taken: a running cell (host ports 18xxx) or another member

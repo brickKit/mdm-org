@@ -84,6 +84,8 @@
 
 ## 实现状态
 
+3.0.20（底层先行第 4 项 T10 的级联）：be-sdk-go alpha.92。整套恢复的核对（`CheckService`，操作 `mdm.org.system.recover`，只许恢复工具调用）：SDK 自带的三项检查；法人与部门按版本答“还在不在”；业务变更的审计 `target` 带变更之后的版本（`audit.TargetOf`）。清单的 `RECOVERY_PHASE` 加 `verifying`、`read_only`。
+
 3.0.19（底层先行第 4 项 T9 的级联）：be-sdk-go alpha.87（重放、恢复阶段 `replaying`、转发器停止时放弃租约）；清单的 `RECOVERY_PHASE` 加 `replaying`。
 
 3.0.18（底层先行第 4 项 T9c）：证据的重放（线协议 P12.19–P12.21，`replay.go`）：退役、移出上级、法人状态按记录重新施加，不重做业务前置校验（下面还有启用的部门等），只查对象还在；新上级落在本部门子树里的（会成环）答“对象不在”交复核；事件与审计照常写，执行者是 `ops/recover`。SDK alpha.83；操作 `mdm.org.system.replay`；恢复阶段加 `replaying`。

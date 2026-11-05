@@ -4,7 +4,7 @@ kind: Component
 metadata:
   id: mdm/org
   name: Organization
-  version: 3.0.19
+  version: 3.0.20
   description: "Legal entities (time zone, base currency, fiscal year start) and the organization units below them, whose paths are authorization's org-tree facts; full-state events and the source methods of protocol 02"
   repository: https://github.com/brickKit/mdm-org
 
@@ -47,6 +47,8 @@ configSchema:
         - frozen
         - redelivering
         - replaying
+        - verifying
+        - read_only
       type: string
     ALERT_WEBHOOK_URL:
       type: string
