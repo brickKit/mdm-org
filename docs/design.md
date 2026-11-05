@@ -84,6 +84,8 @@
 
 ## 实现状态
 
+3.0.19（底层先行第 4 项 T9 的级联）：be-sdk-go alpha.87（重放、恢复阶段 `replaying`、转发器停止时放弃租约）；清单的 `RECOVERY_PHASE` 加 `replaying`。
+
 3.0.18（底层先行第 4 项 T9c）：证据的重放（线协议 P12.19–P12.21，`replay.go`）：退役、移出上级、法人状态按记录重新施加，不重做业务前置校验（下面还有启用的部门等），只查对象还在；新上级落在本部门子树里的（会成环）答“对象不在”交复核；事件与审计照常写，执行者是 `ops/recover`。SDK alpha.83；操作 `mdm.org.system.replay`；恢复阶段加 `replaying`。
 
 3.0.17（底层先行第 4 项 T8 的级联）：be-sdk-go alpha.81（恢复模式、补发与消费者进度）；流的补发（`be.source.v1.ResendService`，操作 `mdm.org.system.resend`，登记在本组件的 system 资源下，部署内任何组件可调用，线协议 P6.38）；清单声明 `RECOVERY_PHASE`。
