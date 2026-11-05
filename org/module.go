@@ -14,6 +14,7 @@ import (
 	"github.com/brickKit/be-sdk-go/v3/bizdate"
 	"github.com/brickKit/be-sdk-go/v3/db"
 	"github.com/brickKit/be-sdk-go/v3/errs"
+	"github.com/brickKit/be-sdk-go/v3/evidence"
 	"github.com/brickKit/be-sdk-go/v3/grpcx"
 	"github.com/brickKit/be-sdk-go/v3/httpx"
 	"github.com/brickKit/be-sdk-go/v3/identity"
@@ -45,13 +46,14 @@ type Module struct {
 	orgv3.UnimplementedSourceServiceServer
 	orgv3.UnimplementedCatchUpServiceServer
 	rt                   *runtime.Runtime
+	ev                   *evidence.Writer // nil: no evidence (tests of the module alone)
 	deployment, instance string
 	defaultZone          string
 }
 
 // New builds the module; a DEFAULT_LEGAL_ENTITY_TIMEZONE that is not an IANA zone stops the start.
 func New(rt *runtime.Runtime) (*Module, error) {
-	m := &Module{rt: rt, deployment: rt.Config.String("DEPLOYMENT_ID"), instance: rt.Config.String("IMPLEMENTATION_INSTANCE"),
+	m := &Module{rt: rt, ev: rt.Evidence, deployment: rt.Config.String("DEPLOYMENT_ID"), instance: rt.Config.String("IMPLEMENTATION_INSTANCE"),
 		defaultZone: rt.Config.String("DEFAULT_LEGAL_ENTITY_TIMEZONE")}
 	if m.defaultZone != "" {
 		if _, err := time.LoadLocation(m.defaultZone); err != nil {
@@ -308,7 +310,7 @@ func (m *Module) updateEntity(c *httpx.Context) error {
 	if err := in.validate(false); err != nil {
 		return err
 	}
-	return m.updateEntityWith(c, ctx, actor, in.Version, func(e *LegalEntity) error {
+	return m.updateEntityWith(c, ctx, actor, in.Version, nil, func(e *LegalEntity) error {
 		if in.Name != nil {
 			e.Name = *in.Name
 		}
@@ -345,7 +347,7 @@ func (m *Module) entityState(c *httpx.Context) error {
 	if in.State != "active" && in.State != "suspended" && in.State != "retired" {
 		return invalid("state", "state is active, suspended or retired")
 	}
-	return m.updateEntityWith(c, ctx, actor, in.Version, func(e *LegalEntity) error {
+	return m.updateEntityWith(c, ctx, actor, in.Version, entityStatus(in.State), func(e *LegalEntity) error {
 		if e.State == "retired" && in.State != "retired" {
 			return errState.New("a retired legal entity stays retired")
 		}
@@ -354,14 +356,30 @@ func (m *Module) entityState(c *httpx.Context) error {
 	})
 }
 
+// updateEntityWith locks the legal entity, applies the change, and writes, publishes and audits it if it changed; a
+// change that may tighten (tight) is recorded as changeUnit does.
 func (m *Module) updateEntityWith(c *httpx.Context, ctx context.Context, actor string, version *int64,
-	apply func(*LegalEntity) error) error {
+	tight *tightening[LegalEntity], apply func(*LegalEntity) error) error {
 	id := c.Param("id")
 	if !uuidForm.MatchString(id) {
 		return notFound("legal entity")
 	}
+	var p *evidence.Pending
+	if tight != nil && m.ev != nil {
+		var pre LegalEntity
+		if m.rt.DB.Tx(ctx, func(ctx context.Context, tx db.Tx) error {
+			var err error
+			pre, err = getEntity(ctx, tx, id, false)
+			return err
+		}) == nil {
+			p = intent(ctx, m.ev, tight, id, pre.Version, pre)
+		}
+	}
+	concluded := false
+	defer func() { settle(ctx, p, concluded) }()
 	var out LegalEntity
 	err := m.rt.DB.Tx(ctx, func(ctx context.Context, tx db.Tx) error {
+		concluded = false
 		cur, err := getEntity(ctx, tx, id, true)
 		if err != nil {
 			return err
@@ -394,8 +412,14 @@ func (m *Module) updateEntityWith(c *httpx.Context, ctx context.Context, actor s
 		if err := m.emit(ctx, tx, LegalEntityChanged, out.ID, out.Version, out); err != nil {
 			return err
 		}
+		if concluded, err = conclude(ctx, tx, p, tight, cur, next); err != nil {
+			return err
+		}
 		return m.change(ctx, tx, actor, OpEntityEdit, LegalEntities, out.ID, out)
 	})
+	if err != nil {
+		concluded = false // the transaction did not commit
+	}
 	if errors.Is(err, errNone) {
 		return notFound("legal entity")
 	}

@@ -4,7 +4,7 @@ kind: Component
 metadata:
   id: mdm/org
   name: Organization
-  version: 3.0.15
+  version: 3.0.16
   description: "Legal entities (time zone, base currency, fiscal year start) and the organization units below them, whose paths are authorization's org-tree facts; full-state events and the source methods of protocol 02"
   repository: https://github.com/brickKit/mdm-org
 
@@ -41,6 +41,20 @@ local:
 
 configSchema:
   properties:
+    ALERT_WEBHOOK_URL:
+      type: string
+    RUN_PROFILE_ACCESS_KEY:
+      type: string
+    RUN_PROFILE_BUCKET:
+      type: string
+    RUN_PROFILE_REGION:
+      description: SDK default us-east-1
+      type: string
+    RUN_PROFILE_SECRET_KEY:
+      secret: true
+      type: string
+    RUN_PROFILE_URL:
+      type: string
     AUDIT_GRPC_URL:
       description: 'process-level: the same for every member of a shell'
       type: string

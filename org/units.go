@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/brickKit/be-sdk-go/v3/db"
+	"github.com/brickKit/be-sdk-go/v3/evidence"
 	"github.com/brickKit/be-sdk-go/v3/httpx"
 	"github.com/brickKit/be-sdk-go/v3/ids"
 	"github.com/brickKit/be-sdk-go/v3/search"
@@ -150,8 +151,9 @@ func (m *Module) getUnit(c *httpx.Context) error {
 }
 
 // changeUnit locks the unit (and with structural, first its legal entity), applies the change, and writes, publishes
-// and audits the unit if it changed.
-func (m *Module) changeUnit(c *httpx.Context, op string, structural bool, version *int64,
+// and audits the unit if it changed. A change that may tighten (tight) writes its intent before, from the unit read
+// without a lock, and its conclusion in the transaction when it did tighten; otherwise the intent is cancelled.
+func (m *Module) changeUnit(c *httpx.Context, op string, structural bool, version *int64, tight *tightening[Unit],
 	apply func(ctx context.Context, tx db.Tx, u *Unit) error) error {
 	ctx, actor, err := check(c, op)
 	if err != nil {
@@ -161,8 +163,17 @@ func (m *Module) changeUnit(c *httpx.Context, op string, structural bool, versio
 	if !uuidForm.MatchString(id) {
 		return notFound("unit")
 	}
+	var p *evidence.Pending
+	if tight != nil && m.ev != nil {
+		if pre, err := m.unit(ctx, id); err == nil {
+			p = intent(ctx, m.ev, tight, id, pre.Version, pre)
+		}
+	}
+	concluded := false
+	defer func() { settle(ctx, p, concluded) }()
 	var out Unit
 	err = m.rt.DB.Tx(ctx, func(ctx context.Context, tx db.Tx) error {
+		concluded = false
 		if structural {
 			var le string
 			if err := tx.QueryRow(ctx, `SELECT legal_entity_id::text FROM org_unit WHERE id = $1`, id).Scan(&le); err != nil {
@@ -196,8 +207,14 @@ func (m *Module) changeUnit(c *httpx.Context, op string, structural bool, versio
 		if err := m.emit(ctx, tx, UnitChanged, out.ID, out.Version, out); err != nil {
 			return err
 		}
+		if concluded, err = conclude(ctx, tx, p, tight, cur, next); err != nil {
+			return err
+		}
 		return m.change(ctx, tx, actor, op, Units, out.ID, out)
 	})
+	if err != nil {
+		concluded = false // the transaction did not commit
+	}
 	if errors.Is(err, errNone) {
 		return notFound("unit")
 	}
@@ -228,7 +245,7 @@ func (m *Module) renameUnit(c *httpx.Context) error {
 			return err
 		}
 	}
-	return m.changeUnit(c, OpUnitEdit, false, in.Version, func(_ context.Context, _ db.Tx, u *Unit) error {
+	return m.changeUnit(c, OpUnitEdit, false, in.Version, nil, func(_ context.Context, _ db.Tx, u *Unit) error {
 		if in.Name != nil {
 			u.Name = *in.Name
 		}
@@ -253,7 +270,7 @@ func (m *Module) moveUnit(c *httpx.Context) error {
 	if in.ParentID != nil && !uuidForm.MatchString(*in.ParentID) {
 		return invalid("parent_id", "parent_id is a unit's ID, or null for the top")
 	}
-	return m.changeUnit(c, OpUnitEdit, true, in.Version, func(ctx context.Context, tx db.Tx, u *Unit) error {
+	return m.changeUnit(c, OpUnitEdit, true, in.Version, moveOut(in.ParentID), func(ctx context.Context, tx db.Tx, u *Unit) error {
 		if u.State != "active" {
 			return errState.New("a retired unit does not move")
 		}
@@ -349,7 +366,7 @@ func (m *Module) retireUnit(c *httpx.Context) error {
 			return err
 		}
 	}
-	return m.changeUnit(c, OpUnitEdit, true, in.Version, func(ctx context.Context, tx db.Tx, u *Unit) error {
+	return m.changeUnit(c, OpUnitEdit, true, in.Version, retirement, func(ctx context.Context, tx db.Tx, u *Unit) error {
 		if u.State == "retired" {
 			return nil
 		}

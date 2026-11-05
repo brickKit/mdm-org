@@ -20,7 +20,7 @@ import (
 // Identity of the component.
 const (
 	ID       = "mdm/org"
-	Version  = "3.0.15"
+	Version  = "3.0.16"
 	GRPCPort = 9093
 )
 
@@ -100,6 +100,6 @@ func Definitions() *sdkauthz.Definitions {
 // Definition is the component as the launcher and the shells take it.
 func Definition() component.Definition {
 	return component.Definition{ID: ID, Version: Version, Keys: Keys(), Migrations: migrations(), GRPCPort: GRPCPort,
-		Streams: []events.Stream{{Name: Stream, Partitions: 4}}, Authz: Definitions(),
+		Streams: []events.Stream{{Name: Stream, Partitions: 4}}, Authz: Definitions(), Evidence: true,
 		New: func(rt *runtime.Runtime) (component.Module, error) { return New(rt) }}
 }

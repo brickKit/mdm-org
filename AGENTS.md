@@ -10,6 +10,7 @@
 | `org/module.go` | 路由与系统面的注册、法人的新建、修改、状态与业务日期；本版不做的路由 |
 | `org/units.go` | 部门：新建、改名、移动（`repath`：子树的路径与历史）、退役、上级、路径历史 |
 | `org/lists.go` | 两个列表 |
+| `org/evidence.go` | 证据（协议 15）：哪些调整是收紧（退役、移出上级、法人暂停或退役）、意图、锁下的结论、没收紧就取消 |
 | `org/records.go` | 记录的类型、读取与事件 |
 | `org/source.go` | 来源方法 |
 | `org/migrations/` | 表：法人、部门、路径历史 |
@@ -28,7 +29,7 @@
 ## 构建与测试
 
 - `go test ./...`（`make test`）：清单的 `configSchema` 与 `events`、OpenAPI 与路由、事件载荷、合并安全。
-- `go test -tags integration ./org/`（`make test-integration`）：真实的 PostgreSQL 与消息系统，例如 `BE_SDK_TEST_PG_ADMIN=postgres://postgres:<口令>@localhost:5432/brickkit_test_db`（口令是装配项目 `.env` 的 `POSTGRES_PASSWORD`）与 `BE_SDK_TEST_NATS_URL=nats://localhost:4222`；be-sdk-go 的 `sectest` 是测试部署。
+- `go test -tags integration ./org/`（`make test-integration`）：真实的 PostgreSQL 与消息系统，例如 `BE_SDK_TEST_PG_ADMIN=postgres://postgres:<口令>@localhost:5432/brickkit_test_db`（口令是装配项目 `.env` 的 `POSTGRES_PASSWORD`）与 `BE_SDK_TEST_NATS_URL=nats://localhost:4222`；be-sdk-go 的 `sectest` 是测试部署（含证据存储的替身：`evidence_integration_test.go` 由端到端测试最后调用，看意图、结论、取消与证据存储停着时的本地等待）。
 - 集成测试的前提：装配项目里 `make up` 起了 `be-postgres` 与 `be-nats`；`be-postgres` 里有库 `brickkit_test_db`（没有就 `docker exec be-postgres createdb -U postgres brickkit_test_db`；`make test-db-init` 的组件清单还是旧的，不认这个组件）；测试每次开始时删掉再建自己的 schema `mdm_org_it`，跑完留着；端口 28083、9093 要空着，被占时测试直接失败。
 - `brickkit lint`
 
