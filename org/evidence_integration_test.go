@@ -5,8 +5,14 @@ package org
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/brickKit/be-sdk-go/v3/evidence"
+	"github.com/brickKit/be-sdk-go/v3/ids"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 
 	"github.com/brickKit/be-sdk-go/v3/sectest"
 	"github.com/jackc/pgx/v5"
@@ -121,4 +127,90 @@ func evidenceStory(t *testing.T, w *sectest.World, admin *pgx.Conn, alice client
 	w.EvidenceDown(false)
 	got = await(e2, "effective", 2)
 	assert.Len(t, got["intent"], 2, "no store, no alert channel: the third intent was a double failure")
+}
+
+// replayStory is item 4's T9c (be-protocol P12.19-P12.21, assembly protocol 15's 6.3): the recovery tool replays
+// this member's evidence. A retirement and a legal entity's suspension are made, then the database is put back as it
+// was before them (their state and their change history row: a restore to T); the replay re-applies each as recorded,
+// and again answers reflected; a move whose recorded parent now lies below the unit would make a cycle: dangling.
+func replayStory(t *testing.T, w *sectest.World, admin *pgx.Conn, alice client, le string) {
+	ctx := context.Background()
+	tls := w.TLS(t, "ops/recover")
+	conn, err := grpc.NewClient(itSystem, grpc.WithTransportCredentials(credentials.NewTLS(tls.ClientConfig(ID))))
+	require.NoError(t, err)
+	defer conn.Close()
+	replay := func(raw []byte) string {
+		t.Helper()
+		outcome, _, err := evidence.ReplayClient{Conn: conn}.Replay(ctx, raw, "r1")
+		require.NoError(t, err)
+		return outcome
+	}
+	effective := func(id string) []byte {
+		t.Helper()
+		var raw []byte
+		require.Eventually(t, func() bool {
+			for k, v := range w.Evidence() {
+				if strings.HasSuffix(k, "/effective") {
+					var r map[string]any
+					if json.Unmarshal(v, &r) == nil && r["object"].(map[string]any)["id"] == id {
+						raw = v
+						return true
+					}
+				}
+			}
+			return false
+		}, 10*time.Second, 100*time.Millisecond)
+		return raw
+	}
+	back := func(table, id, state string, raw []byte) { // the database as it was before the change
+		var r map[string]any
+		require.NoError(t, json.Unmarshal(raw, &r))
+		_, err := admin.Exec(ctx, "UPDATE "+itSchema+"."+table+" SET state = $2 WHERE id = $1", id, state)
+		require.NoError(t, err)
+		_, err = admin.Exec(ctx, "DELETE FROM "+itSchema+".be_change_history WHERE evidence_id = $1", r["id"])
+		require.NoError(t, err)
+	}
+	stateOf := func(table, id string) string {
+		var s string
+		require.NoError(t, admin.QueryRow(ctx, "SELECT state FROM "+itSchema+"."+table+" WHERE id = $1", id).Scan(&s))
+		return s
+	}
+
+	c, u := alice.do("POST", "/api/org/units", map[string]any{"legal_entity_id": le, "parent_id": nil, "code": "RP1", "name": "RP1"})
+	require.Equal(t, 200, c, u)
+	unit := u["id"].(string)
+	c, _ = alice.do("POST", "/api/org/units/"+unit+"/retire", nil)
+	require.Equal(t, 200, c)
+	rec := effective(unit)
+	back("org_unit", unit, "active", rec)
+	assert.Equal(t, evidence.Applied, replay(rec), "re-applied as recorded")
+	assert.Equal(t, "retired", stateOf("org_unit", unit))
+	var audited int
+	require.NoError(t, admin.QueryRow(ctx, "SELECT count(*) FROM "+itSchema+".be_audit_log WHERE actor::text LIKE '%ops/recover%'").Scan(&audited))
+	assert.Positive(t, audited, "audited with the recovery tool as the actor")
+	assert.Equal(t, evidence.AlreadyReflected, replay(rec), "again: reflected")
+
+	c, e := alice.do("POST", "/api/org/legal-entities", map[string]any{"code": "RP01", "name": "Replay Ltd", "country": "GB",
+		"timezone": "Europe/London", "base_currency": "GBP"})
+	require.Equal(t, 200, c, e)
+	entity := e["id"].(string)
+	c, _ = alice.do("POST", "/api/org/legal-entities/"+entity+"/state", map[string]any{"state": "suspended"})
+	require.Equal(t, 200, c)
+	rec = effective(entity)
+	back("legal_entity", entity, "active", rec)
+	assert.Equal(t, evidence.Applied, replay(rec))
+	assert.Equal(t, "suspended", stateOf("legal_entity", entity))
+
+	// a move recorded under a unit that now lies below the moved one: not applied (a cycle), for review
+	c, p := alice.do("POST", "/api/org/units", map[string]any{"legal_entity_id": le, "parent_id": nil, "code": "RP2", "name": "RP2"})
+	require.Equal(t, 200, c, p)
+	c, ch := alice.do("POST", "/api/org/units", map[string]any{"legal_entity_id": le, "parent_id": p["id"], "code": "RP3", "name": "RP3"})
+	require.Equal(t, 200, c, ch)
+	cyc, err := evidence.Seal(map[string]any{"record_type": evidence.RecordType, "schema": "1.0",
+		"id": ids.New().String(), "recorder": map[string]any{"component": ID, "instance": "i"}, "category": Category,
+		"phase": "effective", "object": map[string]any{"type": UnitType, "id": p["id"], "version": "1"},
+		"change": map[string]any{"kind": "move_out", "parent_after": ch["id"], "path_before": p["path"]},
+		"at":     "2026-11-05T10:00:00.000000Z", "position": map[string]any{"epoch": "1.1", "commit_seq": 1}})
+	require.NoError(t, err)
+	assert.Equal(t, evidence.Dangling, replay(cyc.Record))
 }

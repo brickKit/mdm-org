@@ -20,7 +20,7 @@ import (
 // Identity of the component.
 const (
 	ID       = "mdm/org"
-	Version  = "3.0.17"
+	Version  = "3.0.18"
 	GRPCPort = 9093
 )
 
@@ -43,6 +43,8 @@ const (
 	// OpResend is the redelivery of this component's stream (be-protocol P6.38: every component with streams serves
 	// it; any component of the deployment may call it).
 	OpResend = "mdm.org.system.resend"
+	// OpReplay is the replay of this member's evidence in a full recovery (be-protocol P12.19: the recovery tool only).
+	OpReplay = "mdm.org.system.replay"
 	OpSystem = "mdm.org.system.read"
 )
 
@@ -98,12 +100,13 @@ func Definitions() *sdkauthz.Definitions {
 				SideEffects: []string{"business_write"}, Audit: true},
 			{Key: OpSystem, ResourceType: System, Purpose: "read", RiskClass: "low"},
 			{Key: OpResend, ResourceType: System, Purpose: "read", RiskClass: "low"},
+			{Key: OpReplay, ResourceType: System, Purpose: "action", RiskClass: "high", SideEffects: []string{"business_write"}},
 		}}
 }
 
 // Definition is the component as the launcher and the shells take it.
 func Definition() component.Definition {
 	return component.Definition{ID: ID, Version: Version, Keys: Keys(), Migrations: migrations(), GRPCPort: GRPCPort,
-		Streams: []events.Stream{{Name: Stream, Partitions: 4}}, Authz: Definitions(), Resend: OpResend, Evidence: true,
+		Streams: []events.Stream{{Name: Stream, Partitions: 4}}, Authz: Definitions(), Resend: OpResend, Replay: OpReplay, Evidence: true,
 		New: func(rt *runtime.Runtime) (component.Module, error) { return New(rt) }}
 }

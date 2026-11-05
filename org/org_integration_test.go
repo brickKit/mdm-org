@@ -238,6 +238,7 @@ func TestOrgEndToEnd(t *testing.T) {
 	assert.Equal(t, errs.ReasonCapabilityUnsupported, e.Reason)
 
 	t.Run("evidence", func(t *testing.T) { evidenceStory(t, w, admin, alice, esID) })
+	t.Run("replay", func(t *testing.T) { replayStory(t, w, admin, alice, esID) })
 }
 
 // portFree fails at once when a port the member needs is taken: a running cell (host ports 18xxx) or another member

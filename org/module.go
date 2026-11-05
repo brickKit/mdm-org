@@ -399,11 +399,7 @@ func (m *Module) updateEntityWith(c *httpx.Context, ctx context.Context, actor s
 			out = cur
 			return nil
 		}
-		nb, _ := json.Marshal(next.Names)
-		if _, err := tx.Exec(ctx, `UPDATE legal_entity SET name = $2, names = $3, timezone = $4, base_currency = $5,
-			fiscal_year_start_month = $6, state = $7, search = $8, search_version = $9, version = version + 1,
-			updated_at = now() WHERE id = $1`, id, next.Name, nb, next.Timezone, next.BaseCurrency,
-			next.FiscalYearStartMonth, next.State, searchOf(next.Code, next.Name, next.Names), search.Version); err != nil {
+		if err := writeEntity(ctx, tx, next); err != nil {
 			return err
 		}
 		if out, err = getEntity(ctx, tx, id, false); err != nil {
@@ -456,4 +452,14 @@ func (m *Module) businessDate(c *httpx.Context) error {
 		return err
 	}
 	return c.JSON(200, map[string]string{"date": d, "timezone": e.Timezone})
+}
+
+// writeEntity writes a legal entity's changed fields with a new version.
+func writeEntity(ctx context.Context, tx db.Tx, e LegalEntity) error {
+	nb, _ := json.Marshal(e.Names)
+	_, err := tx.Exec(ctx, `UPDATE legal_entity SET name = $2, names = $3, timezone = $4, base_currency = $5,
+		fiscal_year_start_month = $6, state = $7, search = $8, search_version = $9, version = version + 1,
+		updated_at = now() WHERE id = $1`, e.ID, e.Name, nb, e.Timezone, e.BaseCurrency,
+		e.FiscalYearStartMonth, e.State, searchOf(e.Code, e.Name, e.Names), search.Version)
+	return err
 }
