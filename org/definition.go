@@ -20,7 +20,7 @@ import (
 // Identity of the component.
 const (
 	ID       = "mdm/org"
-	Version  = "3.0.16"
+	Version  = "3.0.17"
 	GRPCPort = 9093
 )
 
@@ -40,7 +40,10 @@ const (
 	OpUnitRead    = "mdm.org_unit.read"
 	OpUnitEdit    = "mdm.org_unit.manage"
 	System        = "mdm.org.system"
-	OpSystem      = "mdm.org.system.read"
+	// OpResend is the redelivery of this component's stream (be-protocol P6.38: every component with streams serves
+	// it; any component of the deployment may call it).
+	OpResend = "mdm.org.system.resend"
+	OpSystem = "mdm.org.system.read"
 )
 
 // MaxBatch is the most IDs a Read takes and records a Snapshot page gives (decision 0304).
@@ -94,12 +97,13 @@ func Definitions() *sdkauthz.Definitions {
 			{Key: OpUnitEdit, ResourceType: Units, Purpose: "manage", RiskClass: "high",
 				SideEffects: []string{"business_write"}, Audit: true},
 			{Key: OpSystem, ResourceType: System, Purpose: "read", RiskClass: "low"},
+			{Key: OpResend, ResourceType: System, Purpose: "read", RiskClass: "low"},
 		}}
 }
 
 // Definition is the component as the launcher and the shells take it.
 func Definition() component.Definition {
 	return component.Definition{ID: ID, Version: Version, Keys: Keys(), Migrations: migrations(), GRPCPort: GRPCPort,
-		Streams: []events.Stream{{Name: Stream, Partitions: 4}}, Authz: Definitions(), Evidence: true,
+		Streams: []events.Stream{{Name: Stream, Partitions: 4}}, Authz: Definitions(), Resend: OpResend, Evidence: true,
 		New: func(rt *runtime.Runtime) (component.Module, error) { return New(rt) }}
 }
