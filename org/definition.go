@@ -20,7 +20,7 @@ import (
 // Identity of the component.
 const (
 	ID       = "mdm/org"
-	Version  = "3.0.28"
+	Version  = "3.0.29"
 	GRPCPort = 9093
 )
 
