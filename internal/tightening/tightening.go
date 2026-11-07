@@ -1,10 +1,12 @@
-package org
+package tightening
 
 import (
 	"context"
 	"slices"
 	"strconv"
 	"strings"
+
+	core "github.com/brickKit/mdm-org/v3/internal/core"
 
 	"github.com/brickKit/be-sdk-go/v3/db"
 	"github.com/brickKit/be-sdk-go/v3/evidence"
@@ -26,8 +28,8 @@ const (
 // tells retirement, move_out and legal_entity_status apart.
 const Category = "org_tightening"
 
-// tightening describes a change that may narrow what the tree grants, for a record of type T (Unit, LegalEntity).
-type tightening[T any] struct {
+// Tightening describes a change that may narrow what the tree grants, for a record of type T (Unit, LegalEntity).
+type Tightening[T any] struct {
 	typ string
 	// due reports, from the record read without a lock before the change, whether the change may tighten: the intent
 	// is written then. It must hold whenever the change under the lock can tighten (the intent comes first).
@@ -38,8 +40,8 @@ type tightening[T any] struct {
 	tightens func(before, after T) bool
 }
 
-// intent writes a tightening's intent; nil when the member writes no evidence or the change cannot tighten.
-func intent[T any](ctx context.Context, w *evidence.Writer, t *tightening[T], id string, version int64, before T) *evidence.Pending {
+// Intent writes a tightening's intent; nil when the member writes no evidence or the change cannot tighten.
+func Intent[T any](ctx context.Context, w *evidence.Writer, t *Tightening[T], id string, version int64, before T) *evidence.Pending {
 	if w == nil || t == nil || !t.due(before) {
 		return nil
 	}
@@ -54,41 +56,41 @@ func intent[T any](ctx context.Context, w *evidence.Writer, t *tightening[T], id
 	return p
 }
 
-// conclude writes the effective conclusion in the change's transaction when the change tightened.
-func conclude[T any](ctx context.Context, tx db.Tx, p *evidence.Pending, t *tightening[T], before, after T) (bool, error) {
+// Conclude writes the effective conclusion in the change's transaction when the change tightened.
+func Conclude[T any](ctx context.Context, tx db.Tx, p *evidence.Pending, t *Tightening[T], before, after T) (bool, error) {
 	if p == nil || !t.tightens(before, after) {
 		return false, nil
 	}
 	return true, p.Effective(ctx, tx)
 }
 
-// settle writes cancelled when the change whose intent p is did not tighten (refused, no change, or a widening).
-func settle(ctx context.Context, p *evidence.Pending, concluded bool) {
+// Settle writes cancelled when the change whose intent p is did not tighten (refused, no change, or a widening).
+func Settle(ctx context.Context, p *evidence.Pending, concluded bool) {
 	if p != nil && !concluded {
 		_ = p.Cancelled(context.WithoutCancel(ctx))
 	}
 }
 
 // retirement: an active unit retired.
-var retirement = &tightening[Unit]{typ: UnitType,
-	due:      func(u Unit) bool { return u.State == "active" },
-	change:   func(Unit) map[string]any { return map[string]any{"kind": "retirement"} },
-	tightens: func(b, a Unit) bool { return b.State == "active" && a.State == "retired" },
+var Retirement = &Tightening[core.Unit]{typ: UnitType,
+	due:      func(u core.Unit) bool { return u.State == "active" },
+	change:   func(core.Unit) map[string]any { return map[string]any{"kind": "retirement"} },
+	tightens: func(b, a core.Unit) bool { return b.State == "active" && a.State == "retired" },
 }
 
-// moveOut: a unit no longer below one of the units it was below. Every move of an active unit writes its intent:
+// MoveOut: a unit no longer below one of the units it was below. Every move of an active unit writes its intent:
 // the units above it after the move are known only under the tree's lock.
-func moveOut(parent *string) *tightening[Unit] {
-	return &tightening[Unit]{typ: UnitType,
-		due: func(u Unit) bool { return u.State == "active" },
-		change: func(u Unit) map[string]any {
+func MoveOut(parent *string) *Tightening[core.Unit] {
+	return &Tightening[core.Unit]{typ: UnitType,
+		due: func(u core.Unit) bool { return u.State == "active" },
+		change: func(u core.Unit) map[string]any {
 			var to any // the top: null
 			if parent != nil {
 				to = *parent
 			}
 			return map[string]any{"kind": "move_out", "parent_after": to, "path_before": u.Path}
 		},
-		tightens: func(b, a Unit) bool {
+		tightens: func(b, a core.Unit) bool {
 			after := above(a.Path)
 			return slices.ContainsFunc(above(b.Path), func(id string) bool { return !slices.Contains(after, id) })
 		},
@@ -106,11 +108,13 @@ func above(path string) []string {
 
 var entityRank = map[string]int{"active": 0, "suspended": 1, "retired": 2}
 
-// entityStatus: a legal entity suspended or retired (a retired one stays retired).
-func entityStatus(state string) *tightening[LegalEntity] {
-	return &tightening[LegalEntity]{typ: LegalEntityType,
-		due:      func(e LegalEntity) bool { return state != "active" && e.State != "retired" },
-		change:   func(LegalEntity) map[string]any { return map[string]any{"kind": "legal_entity_status", "state": state} },
-		tightens: func(b, a LegalEntity) bool { return entityRank[a.State] > entityRank[b.State] },
+// EntityStatus: a legal entity suspended or retired (a retired one stays retired).
+func EntityStatus(state string) *Tightening[core.LegalEntity] {
+	return &Tightening[core.LegalEntity]{typ: LegalEntityType,
+		due: func(e core.LegalEntity) bool { return state != "active" && e.State != "retired" },
+		change: func(core.LegalEntity) map[string]any {
+			return map[string]any{"kind": "legal_entity_status", "state": state}
+		},
+		tightens: func(b, a core.LegalEntity) bool { return entityRank[a.State] > entityRank[b.State] },
 	}
 }

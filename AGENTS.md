@@ -4,35 +4,42 @@
 
 ## 代码地图
 
-| 位置 | 内容 |
+代码按业务模块分层。**先读这一节，再进目录**：每个代码目录都有自己的 `AGENTS.md`（同目录的 `CLAUDE.md` 让 Claude Code 读这个目录的文件时自动带上它），写这一层负责什么、不负责什么、每个文件、依赖谁、测在哪。
+
+| 目录 | 是什么 |
 | --- | --- |
-| `org/definition.go` | 组件定义：身份、配置键、流与事件类型、资源与操作 |
-| `org/checks.go` | 整套恢复的核对（线协议第 14 章，SDK 的 `CheckService`，只许恢复工具调用）：本组件审计过的对象按版本答“还在不在”（`Presence`） |
-| `org/module.go` | 路由与系统面的注册、法人的新建、修改、状态与业务日期；本版不做的路由 |
-| `org/units.go` | 部门：新建、改名、移动（`repath`：子树的路径与历史）、退役、上级、路径历史 |
-| `org/lists.go` | 两个列表 |
-| `org/evidence.go` | 证据（协议 15）：哪些调整是收紧（退役、移出上级、法人暂停或退役）、意图、锁下的结论、没收紧就取消 |
-| `org/replay.go` | 整套恢复第 6 步的重放（`ReplayService` 调这里）：退役、移出上级、法人状态按记录重新施加，不重做业务前置校验，只查对象还在；会成环的移动交复核 |
-| `org/records.go` | 记录的类型、读取与事件 |
-| `org/source.go` | 来源方法 |
+| [`org/`](org/AGENTS.md) | 入口：组件定义与组装（路由、系统面、证据的重放、恢复核对都在这里登记，转给业务模块）；不写业务。`main.go` 与外壳只引用它 |
+| [`internal/`](internal/AGENTS.md) | 业务：下面的模块各一个包；模块之间的依赖表在它的 `AGENTS.md` |
+| [`itest/`](itest/AGENTS.md) | 集成测试，按业务流程分文件；它的 `AGENTS.md` 是测试索引 |
 | `org/migrations/` | 表：法人、部门、路径历史 |
 | `cmd/seed/` | 种子：角色与授予（含撤销、过期的反例）、法人、部门树（`make seed`） |
 | `contract/` | 本组件发布的契约，单独的模块：`contract/proto/`、`contract/events/`、`contract/openapi.yaml` |
 | `docs/design.md` | 设计：术语、表、状态与规则、命令、事件、实现状态、未决问题 |
 
+业务模块（`internal/` 下）：
+
+| 模块 | 负责 | 拥有的表 |
+| --- | --- | --- |
+| [`entities`](internal/entities/AGENTS.md) | 法人：新建、修改、状态、业务日期与时区、列表 | `legal_entity` |
+| [`units`](internal/units/AGENTS.md) | 部门树：新建、改名、移动（子树的路径与历史）、退役、上级、路径历史、列表 | `org_unit`、`org_unit_path_history` |
+| [`tightening`](internal/tightening/AGENTS.md) | 收紧授权的调整的证据（协议 15）：哪些是收紧、意图、锁下的结论、没收紧就取消 | — |
+| [`replay`](internal/replay/AGENTS.md) | 整套恢复后按证据重放收紧的调整 | — |
+| [`source`](internal/source/AGENTS.md) | 系统面：来源方法、追补（本版不做） | — |
+
+共用的：[`core`](internal/core/AGENTS.md)（名字与资源定义、校验、审计与事件的写法、记录的类型与读取、列表的共用部分、本版不做的路由）。
+
 | 想改 | 从这里开始 | 然后 |
 | --- | --- | --- |
-| 部门树的规则（无环、移动、退役） | `units.go` 的 `moveUnit`、`repath`、`retireUnit` | 集成测试的树一段 |
-| 法人的生命周期 | `module.go` 的 `entityState` | 协议 07 的状态表 |
-| 加一个用户面路由 | `contract/openapi.yaml` | `module.go` 的 `Routes`；`contract_test.go` 核对 |
-| 法人的业务日期、时区 | `module.go` 的 `businessDate` | 集成测试的 Europe/Madrid 一段 |
+| 部门树的规则（无环、移动、退役） | `internal/units` 的 `MoveUnit`、`Repath`、`RetireUnit` | `itest/units_integration_test.go` |
+| 法人的生命周期 | `internal/entities` 的 `EntityState` | 协议 07 的状态表；收紧的证据在 `internal/tightening` |
+| 加一个用户面路由 | `contract/openapi.yaml` | 处理函数写在它的模块里，在 `org/module.go` 的 `Routes` 登记；`contract_test.go` 核对 |
+| 法人的业务日期、时区 | `internal/entities` 的 `BusinessDate` | `itest/entities_integration_test.go`（Europe/Madrid） |
 | 加字段、加接口、改事件 | 装配项目 be-assembly-standard 规范里的“改动配方” | `docs/design.md` 的数据与命令 |
 
 ## 构建与测试
 
 - `go test ./...`（`make test`）：清单的 `configSchema` 与 `events`、OpenAPI 与路由、事件载荷、合并安全。
-- `go test -tags integration ./org/`（`make test-integration`）：真实的 PostgreSQL 与消息系统，例如 `BE_SDK_TEST_PG_ADMIN=postgres://postgres:<口令>@localhost:5432/brickkit_test_db`（口令是装配项目 `.env` 的 `POSTGRES_PASSWORD`）与 `BE_SDK_TEST_NATS_URL=nats://localhost:4222`；be-sdk-go 的 `sectest` 是测试部署（含证据存储的替身：`evidence_integration_test.go` 由端到端测试最后调用，看意图、结论、取消与证据存储停着时的本地等待）。
-- 集成测试的前提：装配项目里 `make up` 起了 `be-postgres` 与 `be-nats`；`be-postgres` 里有库 `brickkit_test_db`（没有就 `docker exec be-postgres createdb -U postgres brickkit_test_db`；`make test-db-init` 的组件清单还是旧的，不认这个组件）；测试每次开始时删掉再建自己的 schema `mdm_org_it`，跑完留着；端口 28083、9093 要空着，被占时测试直接失败。
+- `make test-integration`（`go test -tags integration ./itest/`）：真实的 PostgreSQL 与消息系统；每个文件测哪条流程、要什么前提，在 [itest/AGENTS.md](itest/AGENTS.md)。
 - `brickkit lint`
 
 ## 设计取舍

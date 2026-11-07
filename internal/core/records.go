@@ -1,4 +1,4 @@
-package org
+package core
 
 import (
 	"context"
@@ -42,12 +42,12 @@ type Unit struct {
 }
 
 const (
-	entityCols = `id::text, code, name, names, country, timezone, base_currency, fiscal_year_start_month, state, version,
+	EntityCols = `id::text, code, name, names, country, timezone, base_currency, fiscal_year_start_month, state, version,
 		updated_at`
-	unitCols = `id::text, legal_entity_id::text, parent_id::text, code, name, names, path, state, version, updated_at`
+	UnitCols = `id::text, legal_entity_id::text, parent_id::text, code, name, names, path, state, version, updated_at`
 )
 
-func scanEntity(row pgx.Row) (LegalEntity, error) {
+func ScanEntity(row pgx.Row) (LegalEntity, error) {
 	var e LegalEntity
 	var names []byte
 	var at time.Time
@@ -59,7 +59,7 @@ func scanEntity(row pgx.Row) (LegalEntity, error) {
 	return e, err
 }
 
-func scanUnit(row pgx.Row) (Unit, error) {
+func ScanUnit(row pgx.Row) (Unit, error) {
 	var u Unit
 	var names []byte
 	var at time.Time
@@ -71,35 +71,35 @@ func scanUnit(row pgx.Row) (Unit, error) {
 }
 
 // errNone is a lookup that found no row.
-var errNone = errors.New("no such record")
+var ErrNone = errors.New("no such record")
 
 func one[T any](row pgx.Row, scan func(pgx.Row) (T, error)) (T, error) {
 	v, err := scan(row)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return v, errNone
+		return v, ErrNone
 	}
 	return v, err
 }
 
-func getEntity(ctx context.Context, tx db.Tx, id string, lock bool) (LegalEntity, error) {
-	q := `SELECT ` + entityCols + ` FROM legal_entity WHERE id = $1::uuid`
+func GetEntity(ctx context.Context, tx db.Tx, id string, lock bool) (LegalEntity, error) {
+	q := `SELECT ` + EntityCols + ` FROM legal_entity WHERE id = $1::uuid`
 	if lock {
 		q += ` FOR UPDATE`
 	}
-	return one(tx.QueryRow(ctx, q, id), scanEntity)
+	return one(tx.QueryRow(ctx, q, id), ScanEntity)
 }
 
-func getUnit(ctx context.Context, tx db.Tx, id string, lock bool) (Unit, error) {
-	q := `SELECT ` + unitCols + ` FROM org_unit WHERE id = $1::uuid`
+func GetUnit(ctx context.Context, tx db.Tx, id string, lock bool) (Unit, error) {
+	q := `SELECT ` + UnitCols + ` FROM org_unit WHERE id = $1::uuid`
 	if lock {
 		q += ` FOR UPDATE`
 	}
-	return one(tx.QueryRow(ctx, q, id), scanUnit)
+	return one(tx.QueryRow(ctx, q, id), ScanUnit)
 }
 
-// emit writes the record's full-state event into the outbox, in the transaction that changed it (protocol 02, S2).
-func (m *Module) emit(ctx context.Context, tx db.Tx, typ, id string, version int64, data any) error {
-	_, err := m.rt.Events.Emit(ctx, tx, Stream, events.Event{Type: typ, RecordID: id, Version: version,
+// Emit writes the record's full-state event into the outbox, in the transaction that changed it (protocol 02, S2).
+func Emit(m *Base, ctx context.Context, tx db.Tx, typ, id string, version int64, data any) error {
+	_, err := m.RT.Events.Emit(ctx, tx, Stream, events.Event{Type: typ, RecordID: id, Version: version,
 		Projection: events.Full, Data: data})
 	return err
 }

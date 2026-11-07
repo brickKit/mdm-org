@@ -1,6 +1,6 @@
 //go:build integration
 
-package org
+package itest
 
 import (
 	"context"
@@ -8,6 +8,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	core "github.com/brickKit/mdm-org/v3/internal/core"
+	tightening "github.com/brickKit/mdm-org/v3/internal/tightening"
 
 	"github.com/brickKit/be-sdk-go/v3/evidence"
 	"github.com/brickKit/be-sdk-go/v3/ids"
@@ -67,7 +70,7 @@ func evidenceStory(t *testing.T, w *sectest.World, admin *pgx.Conn, alice client
 	assert.Equal(t, in["id"], eff["id"], "one record, two phases")
 	assert.Equal(t, "org_tightening", in["category"])
 	assert.Equal(t, "move_out", in["change"].(map[string]any)["kind"])
-	assert.Equal(t, map[string]any{"type": UnitType, "id": e2, "version": "1"}, in["object"], "the version before the move")
+	assert.Equal(t, map[string]any{"type": tightening.UnitType, "id": e2, "version": "1"}, in["object"], "the version before the move")
 	assert.Equal(t, e3, in["change"].(map[string]any)["parent_after"])
 	assert.Nil(t, in["position"])
 	assert.NotNil(t, eff["position"])
@@ -110,7 +113,7 @@ func evidenceStory(t *testing.T, w *sectest.World, admin *pgx.Conn, alice client
 	require.Equal(t, 200, code, out)
 	got = await(evID, "effective", 1)
 	assert.Equal(t, "legal_entity_status", got["intent"][0]["change"].(map[string]any)["kind"])
-	assert.Equal(t, LegalEntityType, got["intent"][0]["object"].(map[string]any)["type"])
+	assert.Equal(t, tightening.LegalEntityType, got["intent"][0]["object"].(map[string]any)["type"])
 	assert.Equal(t, "suspended", got["intent"][0]["change"].(map[string]any)["state"])
 	code, out = alice.do("POST", "/api/org/legal-entities/"+evID+"/state", map[string]any{"state": "active"})
 	require.Equal(t, 200, code, out)
@@ -136,7 +139,7 @@ func evidenceStory(t *testing.T, w *sectest.World, admin *pgx.Conn, alice client
 func replayStory(t *testing.T, w *sectest.World, admin *pgx.Conn, alice client, le string) {
 	ctx := context.Background()
 	tls := w.TLS(t, "ops/recover")
-	conn, err := grpc.NewClient(itSystem, grpc.WithTransportCredentials(credentials.NewTLS(tls.ClientConfig(ID))))
+	conn, err := grpc.NewClient(itSystem, grpc.WithTransportCredentials(credentials.NewTLS(tls.ClientConfig(core.ID))))
 	require.NoError(t, err)
 	defer conn.Close()
 	replay := func(raw []byte) string {
@@ -207,10 +210,21 @@ func replayStory(t *testing.T, w *sectest.World, admin *pgx.Conn, alice client, 
 	c, ch := alice.do("POST", "/api/org/units", map[string]any{"legal_entity_id": le, "parent_id": p["id"], "code": "RP3", "name": "RP3"})
 	require.Equal(t, 200, c, ch)
 	cyc, err := evidence.Seal(map[string]any{"record_type": evidence.RecordType, "schema": "1.0",
-		"id": ids.New().String(), "recorder": map[string]any{"component": ID, "instance": "i"}, "category": Category,
-		"phase": "effective", "object": map[string]any{"type": UnitType, "id": p["id"], "version": "1"},
+		"id": ids.New().String(), "recorder": map[string]any{"component": core.ID, "instance": "i"}, "category": tightening.Category,
+		"phase": "effective", "object": map[string]any{"type": tightening.UnitType, "id": p["id"], "version": "1"},
 		"change": map[string]any{"kind": "move_out", "parent_after": ch["id"], "path_before": p["path"]},
 		"at":     "2026-11-05T10:00:00.000000Z", "position": map[string]any{"epoch": "1.1", "commit_seq": 1}})
 	require.NoError(t, err)
 	assert.Equal(t, evidence.Dangling, replay(cyc.Record))
+}
+
+// evidence: the tightening changes' evidence (protocol 15): the intent, the conclusion, the cancellation, the local
+// wait while the evidence store is down.
+func (fx *fixture) evidence() {
+	fx.t.Run("evidence", func(t *testing.T) { evidenceStory(t, fx.w, fx.admin, fx.alice, fx.esID) })
+}
+
+// replay: a full recovery's replay of the tightening changes.
+func (fx *fixture) replay() {
+	fx.t.Run("replay", func(t *testing.T) { replayStory(t, fx.w, fx.admin, fx.alice, fx.esID) })
 }

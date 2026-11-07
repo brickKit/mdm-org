@@ -1,10 +1,15 @@
-package org
+package replay
 
 import (
 	"context"
 	"errors"
 	"fmt"
 	"strings"
+
+	core "github.com/brickKit/mdm-org/v3/internal/core"
+	entities "github.com/brickKit/mdm-org/v3/internal/entities"
+	tightening "github.com/brickKit/mdm-org/v3/internal/tightening"
+	units "github.com/brickKit/mdm-org/v3/internal/units"
 
 	"github.com/brickKit/be-sdk-go/v3/db"
 	"github.com/brickKit/be-sdk-go/v3/evidence"
@@ -20,40 +25,34 @@ import (
 // replayActor is the audit records' actor of a replay.
 const replayActor = "ops/recover"
 
-// Replays registers the replay of org_tightening (evidence.Replayer).
-func (m *Module) Replays(r *evidence.Replays) error {
-	r.Add(Category, m.replay)
-	return nil
-}
-
-func (m *Module) replay(ctx context.Context, tx db.Tx, rec evidence.Replayed) error {
+func Replay(m *core.Base, ctx context.Context, tx db.Tx, rec evidence.Replayed) error {
 	kind, _ := rec.Change["kind"].(string)
 	switch {
-	case rec.Object.Type == UnitType && kind == "retirement":
-		return m.replayUnit(ctx, tx, rec.Object.ID, func(u *Unit) error {
+	case rec.Object.Type == tightening.UnitType && kind == "retirement":
+		return replayUnit(m, ctx, tx, rec.Object.ID, func(u *core.Unit) error {
 			u.State = "retired"
 			return nil
 		})
-	case rec.Object.Type == UnitType && kind == "move_out":
+	case rec.Object.Type == tightening.UnitType && kind == "move_out":
 		parent, _ := rec.Change["parent_after"].(string)
-		return m.replayUnit(ctx, tx, rec.Object.ID, func(u *Unit) error { return m.replayMove(ctx, tx, u, parent) })
-	case rec.Object.Type == LegalEntityType && kind == "legal_entity_status":
+		return replayUnit(m, ctx, tx, rec.Object.ID, func(u *core.Unit) error { return replayMove(m, ctx, tx, u, parent) })
+	case rec.Object.Type == tightening.LegalEntityType && kind == "legal_entity_status":
 		state, _ := rec.Change["state"].(string)
-		return m.replayEntity(ctx, tx, rec.Object.ID, state)
+		return replayEntity(m, ctx, tx, rec.Object.ID, state)
 	}
 	return fmt.Errorf("org_tightening of kind %q on %s is not one this version replays", kind, rec.Object.Type)
 }
 
 // replayUnit locks the unit's tree and the unit, applies the change and writes, publishes and audits it.
-func (m *Module) replayUnit(ctx context.Context, tx db.Tx, id string, apply func(u *Unit) error) error {
+func replayUnit(m *core.Base, ctx context.Context, tx db.Tx, id string, apply func(u *core.Unit) error) error {
 	var le string
 	if err := tx.QueryRow(ctx, `SELECT legal_entity_id::text FROM org_unit WHERE id = $1`, id).Scan(&le); err != nil {
 		return fmt.Errorf("unit %s: %w", id, evidence.ErrDangling)
 	}
-	if _, err := structure(ctx, tx, le); err != nil {
+	if _, err := units.Structure(ctx, tx, le); err != nil {
 		return err
 	}
-	cur, err := getUnit(ctx, tx, id, true)
+	cur, err := core.GetUnit(ctx, tx, id, true)
 	if err != nil {
 		return err
 	}
@@ -61,29 +60,29 @@ func (m *Module) replayUnit(ctx context.Context, tx db.Tx, id string, apply func
 	if err := apply(&next); err != nil {
 		return err
 	}
-	if same(cur, next) {
+	if core.Same(cur, next) {
 		return nil // already so: nothing to write
 	}
-	if err := m.writeUnit(ctx, tx, next); err != nil {
+	if err := units.WriteUnit(m, ctx, tx, next); err != nil {
 		return err
 	}
-	out, err := getUnit(ctx, tx, id, false)
+	out, err := core.GetUnit(ctx, tx, id, false)
 	if err != nil {
 		return err
 	}
-	if err := m.emit(ctx, tx, UnitChanged, out.ID, out.Version, out); err != nil {
+	if err := core.Emit(m, ctx, tx, core.UnitChanged, out.ID, out.Version, out); err != nil {
 		return err
 	}
-	return m.change(ctx, tx, replayActor, OpUnitEdit, Units, out.ID, out)
+	return core.Change(m, ctx, tx, replayActor, core.OpUnitEdit, core.Units, out.ID, out)
 }
 
 // replayMove puts the unit under the recorded parent (or at the top), its subtree with it.
-func (m *Module) replayMove(ctx context.Context, tx db.Tx, u *Unit, parentID string) error {
+func replayMove(m *core.Base, ctx context.Context, tx db.Tx, u *core.Unit, parentID string) error {
 	path := u.LegalEntityID + "/" + u.ID
 	var parent *string
 	if parentID != "" {
-		p, err := getUnit(ctx, tx, parentID, false)
-		if errors.Is(err, errNone) || err == nil && p.LegalEntityID != u.LegalEntityID {
+		p, err := core.GetUnit(ctx, tx, parentID, false)
+		if errors.Is(err, core.ErrNone) || err == nil && p.LegalEntityID != u.LegalEntityID {
 			return fmt.Errorf("the parent %s: %w", parentID, evidence.ErrDangling)
 		}
 		if err != nil {
@@ -98,13 +97,13 @@ func (m *Module) replayMove(ctx context.Context, tx db.Tx, u *Unit, parentID str
 		return nil
 	}
 	u.ParentID = parent
-	return m.repath(ctx, tx, u, path)
+	return units.Repath(m, ctx, tx, u, path)
 }
 
 // replayEntity sets a legal entity's recorded status; a retired one stays retired.
-func (m *Module) replayEntity(ctx context.Context, tx db.Tx, id, state string) error {
-	cur, err := getEntity(ctx, tx, id, true)
-	if errors.Is(err, errNone) {
+func replayEntity(m *core.Base, ctx context.Context, tx db.Tx, id, state string) error {
+	cur, err := core.GetEntity(ctx, tx, id, true)
+	if errors.Is(err, core.ErrNone) {
 		return fmt.Errorf("legal entity %s: %w", id, evidence.ErrDangling)
 	}
 	if err != nil {
@@ -115,15 +114,15 @@ func (m *Module) replayEntity(ctx context.Context, tx db.Tx, id, state string) e
 	}
 	next := cur
 	next.State = state
-	if err := writeEntity(ctx, tx, next); err != nil {
+	if err := entities.WriteEntity(ctx, tx, next); err != nil {
 		return err
 	}
-	out, err := getEntity(ctx, tx, id, false)
+	out, err := core.GetEntity(ctx, tx, id, false)
 	if err != nil {
 		return err
 	}
-	if err := m.emit(ctx, tx, LegalEntityChanged, out.ID, out.Version, out); err != nil {
+	if err := core.Emit(m, ctx, tx, core.LegalEntityChanged, out.ID, out.Version, out); err != nil {
 		return err
 	}
-	return m.change(ctx, tx, replayActor, OpEntityEdit, LegalEntities, out.ID, out)
+	return core.Change(m, ctx, tx, replayActor, core.OpEntityEdit, core.LegalEntities, out.ID, out)
 }

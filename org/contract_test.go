@@ -6,6 +6,8 @@ import (
 	"os"
 	"testing"
 
+	core "github.com/brickKit/mdm-org/v3/internal/core"
+
 	"github.com/brickKit/be-sdk-go/v3/httpx"
 	"github.com/brickKit/be-sdk-go/v3/launcher"
 	"github.com/brickKit/be-sdk-go/v3/mergesafety"
@@ -44,10 +46,10 @@ func TestTheRoutesAreTheOpenAPIDocument(t *testing.T) {
 func TestThePayloadsFitTheirSchemas(t *testing.T) {
 	parent := "01a15ab0-0000-7000-8000-0000000000b1"
 	for typ, v := range map[string]any{
-		LegalEntityChanged: LegalEntity{ID: "01a15ab0-0000-7000-8000-0000000000a1", Code: "ES01", Name: "Demo Iberia S.L.",
+		core.LegalEntityChanged: core.LegalEntity{ID: "01a15ab0-0000-7000-8000-0000000000a1", Code: "ES01", Name: "Demo Iberia S.L.",
 			Names: map[string]string{"zh-CN": "演示伊比利亚"}, Country: "ES", Timezone: "Europe/Madrid", BaseCurrency: "EUR",
 			FiscalYearStartMonth: 1, State: "active", Version: 1, UpdatedAt: "2026-10-20T08:00:00.000000Z"},
-		UnitChanged: Unit{ID: "01a15ab0-0000-7000-8000-0000000000b2", LegalEntityID: "01a15ab0-0000-7000-8000-0000000000a1",
+		core.UnitChanged: core.Unit{ID: "01a15ab0-0000-7000-8000-0000000000b2", LegalEntityID: "01a15ab0-0000-7000-8000-0000000000a1",
 			ParentID: &parent, Code: "SALES-N", Name: "Sales North", Names: map[string]string{},
 			Path:  "01a15ab0-0000-7000-8000-0000000000a1/01a15ab0-0000-7000-8000-0000000000b1/01a15ab0-0000-7000-8000-0000000000b2",
 			State: "active", Version: 2, UpdatedAt: "2026-10-20T08:00:00.000000Z"},
