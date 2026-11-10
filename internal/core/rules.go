@@ -37,7 +37,7 @@ func Unsupported(c *httpx.Context) error {
 	if _, _, err := Check(c, c.Operation()); err != nil {
 		return err
 	}
-	return errs.New(errs.ReasonCapabilityUnsupported, "not in this version of mdm/org (positions, reporting lines, "+
+	return errs.New(errs.ReasonCapabilityUnsupported, "not in this version of mdm/org (reporting lines, "+
 		"locations, work calendars and effective-dated changes come later)")
 }
 

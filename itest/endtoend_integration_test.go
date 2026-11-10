@@ -103,6 +103,7 @@ func TestOrgEndToEnd(t *testing.T) {
 	fx.treeRules()
 	fx.lists()
 	fx.outbox()
+	fx.positions()
 	fx.notInThisVersion()
 	fx.source()
 	fx.evidence()

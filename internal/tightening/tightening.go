@@ -14,14 +14,16 @@ import (
 
 // The evidence this member records (assembly protocol 15's evidence table, "a tightening adjustment of the
 // organization"; be-protocol P12.15-P12.18): retiring a unit, moving a unit out from under a unit above it, suspending
-// or retiring a legal entity, in two phases (the intent before the change, the conclusion in its transaction, cancelled
-// when it did not take place). New units, renames, a move that only adds units above and a legal entity made active
-// again narrow nothing and are not recorded.
+// or retiring a legal entity, retiring a position (3.0.34: the appointments on it end), in two phases (the intent
+// before the change, the conclusion in its transaction, cancelled when it did not take place). New units and
+// positions, renames, a move that only adds units above and a legal entity made active again narrow nothing and are
+// not recorded.
 
 // The object types of this member's evidence.
 const (
 	UnitType        = "mdm.org.unit"
 	LegalEntityType = "mdm.org.legal_entity"
+	PositionType    = "mdm.org.position"
 )
 
 // Category is the evidence category of every record here (be-protocol's evidence-record vector); the change's "kind"
@@ -117,4 +119,12 @@ func EntityStatus(state string) *Tightening[core.LegalEntity] {
 		},
 		tightens: func(b, a core.LegalEntity) bool { return entityRank[a.State] > entityRank[b.State] },
 	}
+}
+
+// PositionRetirement: an active position retired (3.0.34): the appointments on it end, and with them what was granted
+// for them.
+var PositionRetirement = &Tightening[core.Position]{typ: PositionType,
+	due:      func(p core.Position) bool { return p.State == "active" },
+	change:   func(core.Position) map[string]any { return map[string]any{"kind": "retirement"} },
+	tightens: func(b, a core.Position) bool { return b.State == "active" && a.State == "retired" },
 }

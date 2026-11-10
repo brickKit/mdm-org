@@ -41,8 +41,22 @@ type Unit struct {
 	UpdatedAt     string            `json:"updated_at"`
 }
 
+// Position is a position's complete state (mdm.org_position.changed.v1): a post within one unit, for life.
+type Position struct {
+	ID            string            `json:"id"`
+	LegalEntityID string            `json:"legal_entity_id"`
+	UnitID        string            `json:"unit_id"`
+	Code          string            `json:"code"`
+	Name          string            `json:"name"`
+	Names         map[string]string `json:"names"`
+	State         string            `json:"state"`
+	Version       int64             `json:"version"`
+	UpdatedAt     string            `json:"updated_at"`
+}
+
 const (
-	EntityCols = `id::text, code, name, names, country, timezone, base_currency, fiscal_year_start_month, state, version,
+	PositionCols = `id::text, legal_entity_id::text, unit_id::text, code, name, names, state, version, updated_at`
+	EntityCols   = `id::text, code, name, names, country, timezone, base_currency, fiscal_year_start_month, state, version,
 		updated_at`
 	UnitCols = `id::text, legal_entity_id::text, parent_id::text, code, name, names, path, state, version, updated_at`
 )
@@ -68,6 +82,17 @@ func ScanUnit(row pgx.Row) (Unit, error) {
 		u.UpdatedAt, err = canon.Time(at), json.Unmarshal(names, &u.Names)
 	}
 	return u, err
+}
+
+func ScanPosition(row pgx.Row) (Position, error) {
+	var p Position
+	var names []byte
+	var at time.Time
+	err := row.Scan(&p.ID, &p.LegalEntityID, &p.UnitID, &p.Code, &p.Name, &names, &p.State, &p.Version, &at)
+	if err == nil {
+		p.UpdatedAt, err = canon.Time(at), json.Unmarshal(names, &p.Names)
+	}
+	return p, err
 }
 
 // errNone is a lookup that found no row.
@@ -102,4 +127,12 @@ func Emit(m *Base, ctx context.Context, tx db.Tx, typ, id string, version int64,
 	_, err := m.RT.Events.Emit(ctx, tx, Stream, events.Event{Type: typ, RecordID: id, Version: version,
 		Projection: events.Full, Data: data})
 	return err
+}
+
+func GetPosition(ctx context.Context, tx db.Tx, id string, lock bool) (Position, error) {
+	q := `SELECT ` + PositionCols + ` FROM org_position WHERE id = $1::uuid`
+	if lock {
+		q += ` FOR UPDATE`
+	}
+	return one(tx.QueryRow(ctx, q, id), ScanPosition)
 }

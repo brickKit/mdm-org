@@ -56,7 +56,7 @@ func (fx *fixture) businessDate() {
 // notInThisVersion: positions and the rest answer CAPABILITY_UNSUPPORTED (D75).
 func (fx *fixture) notInThisVersion() {
 	t := fx.t
-	// not in step 6
-	code, unsup := fx.alice.do("GET", "/api/org/positions", nil)
+	// not in this version (positions are, since 3.0.34)
+	code, unsup := fx.alice.do("GET", "/api/org/reporting-lines", nil)
 	assert.Equal(t, "CAPABILITY_UNSUPPORTED", unsup["reason"], code)
 }

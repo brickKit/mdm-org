@@ -13,6 +13,7 @@ import (
 	orgv3 "github.com/brickKit/mdm-org/contract/v3/gen/go/be/mdm/org/v3"
 	core "github.com/brickKit/mdm-org/v3/internal/core"
 	entities "github.com/brickKit/mdm-org/v3/internal/entities"
+	positions "github.com/brickKit/mdm-org/v3/internal/positions"
 	replay "github.com/brickKit/mdm-org/v3/internal/replay"
 	tightening "github.com/brickKit/mdm-org/v3/internal/tightening"
 	units "github.com/brickKit/mdm-org/v3/internal/units"
@@ -58,9 +59,13 @@ func (m *Module) Routes(r *httpx.Routes) error {
 	add("POST", "/api/org/units/:id/retire", core.OpUnitEdit, h(units.RetireUnit))
 	add("GET", "/api/org/units/:id/ancestors", core.OpUnitRead, h(units.Ancestors))
 	add("GET", "/api/org/units/:id/path-history", core.OpUnitRead, h(units.PathHistory))
-	// in the contract, not in step 6 (D75)
+	add("GET", "/api/org/positions", core.OpPosRead, h(positions.ListPositions))
+	add("POST", "/api/org/positions", core.OpPosEdit, h(positions.CreatePosition))
+	add("GET", "/api/org/positions/:id", core.OpPosRead, h(positions.GetPosition))
+	add("PATCH", "/api/org/positions/:id", core.OpPosEdit, h(positions.RenamePosition))
+	add("POST", "/api/org/positions/:id/retire", core.OpPosEdit, h(positions.RetirePosition))
+	// in the contract, not implemented yet (D75)
 	for _, u := range []struct{ method, path, op string }{
-		{"GET", "/api/org/positions", core.OpUnitRead}, {"POST", "/api/org/positions", core.OpUnitEdit},
 		{"GET", "/api/org/reporting-lines", core.OpUnitRead}, {"POST", "/api/org/reporting-lines", core.OpUnitEdit},
 		{"GET", "/api/org/locations", core.OpEntityRead}, {"POST", "/api/org/locations", core.OpEntityEdit},
 		{"GET", "/api/org/legal-entities/:id/calendar/working-day", core.OpEntityRead},

@@ -12,6 +12,7 @@ const (
 	Stream             = "mdm.org"
 	LegalEntityChanged = "mdm.legal_entity.changed.v1"
 	UnitChanged        = "mdm.org_unit.changed.v1"
+	PositionChanged    = "mdm.org_position.changed.v1"
 )
 
 // Resources and operations (contract/openapi.yaml names each route's operation).
@@ -22,6 +23,9 @@ const (
 	Units         = "mdm.org_unit"
 	OpUnitRead    = "mdm.org_unit.read"
 	OpUnitEdit    = "mdm.org_unit.manage"
+	Positions     = "mdm.org_position"
+	OpPosRead     = "mdm.org_position.read"
+	OpPosEdit     = "mdm.org_position.manage"
 	System        = "mdm.org.system"
 	// OpResend is the redelivery of this component's stream (be-protocol P6.38: every component with streams serves
 	// it; any component of the deployment may call it).
@@ -53,6 +57,8 @@ func Definitions() *sdkauthz.Definitions {
 				"country", "timezone", "base_currency", "fiscal_year_start_month", "state", "version", "updated_at")},
 			{Type: Units, ViewOperation: OpUnitRead, Dimensions: none, Fields: fields("id", "legal_entity_id", "parent_id",
 				"code", "name", "names", "path", "state", "version", "updated_at")},
+			{Type: Positions, ViewOperation: OpPosRead, Dimensions: none, Fields: fields("id", "legal_entity_id", "unit_id",
+				"code", "name", "names", "state", "version", "updated_at")},
 			{Type: System, ViewOperation: OpSystem, Dimensions: none, Fields: map[string]sdkauthz.Field{}},
 		},
 		Operations: []sdkauthz.Operation{
@@ -61,6 +67,9 @@ func Definitions() *sdkauthz.Definitions {
 				SideEffects: []string{"business_write"}, Audit: true},
 			{Key: OpUnitRead, ResourceType: Units, Purpose: "read", RiskClass: "low"},
 			{Key: OpUnitEdit, ResourceType: Units, Purpose: "manage", RiskClass: "high",
+				SideEffects: []string{"business_write"}, Audit: true},
+			{Key: OpPosRead, ResourceType: Positions, Purpose: "read", RiskClass: "low"},
+			{Key: OpPosEdit, ResourceType: Positions, Purpose: "manage", RiskClass: "high",
 				SideEffects: []string{"business_write"}, Audit: true},
 			{Key: OpSystem, ResourceType: System, Purpose: "read", RiskClass: "low"},
 			{Key: OpResend, ResourceType: System, Purpose: "read", RiskClass: "low"},

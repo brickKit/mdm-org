@@ -1,9 +1,9 @@
 // Package org is mdm/org (boundary card mdm/org): legal entities (with their time zone, base currency and the fiscal
-// year's start month) and the organization units below them, whose paths are the org-tree facts of authorization
-// (security 07). Kept by people over the user surface, read by components over the system surface (protocol 02's
-// source methods), published as full-state events. Step 6 of the representative deployment experiment: positions,
-// reporting lines, locations, work calendars, effective-dated changes and the watermark catch-up answer
-// CAPABILITY_UNSUPPORTED (D75).
+// year's start month), the organization units below them, whose paths are the org-tree facts of authorization
+// (security 07), and the positions in the units (3.0.34; mdm/employee's appointments hang on them). Kept by people
+// over the user surface, read by components over the system surface (protocol 02's source methods), published as
+// full-state events. Reporting lines, locations, work calendars, effective-dated changes and the watermark catch-up
+// answer CAPABILITY_UNSUPPORTED (D75).
 package org
 
 import (
@@ -20,7 +20,7 @@ import (
 
 // Identity of the component.
 const (
-	Version  = "3.0.33"
+	Version  = "3.0.34"
 	GRPCPort = 9093
 )
 

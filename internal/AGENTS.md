@@ -7,18 +7,19 @@
 | 包 | 一句话 | 依赖（本组件内） |
 | --- | --- | --- |
 | `entities` | 法人：新建、修改、状态、业务日期、列表 | `core`、`tightening` |
-| `units` | 部门树：新建、改名、移动、退役、上级、路径历史、列表 | `core`、`tightening` |
+| `units` | 部门树：新建、改名、移动、退役、上级、路径历史、列表 | `core`、`positions`、`tightening` |
+| `positions` | 岗位：新建、改名、退役、列表；`ActiveIn`（部门退役前查） | `core`、`tightening` |
 | `tightening` | 收紧授权的调整的证据：哪些是收紧、意图、结论、取消 | `core` |
-| `replay` | 整套恢复后按证据重放收紧的调整 | `core`、`entities`、`tightening`、`units` |
+| `replay` | 整套恢复后按证据重放收紧的调整 | `core`、`entities`、`positions`、`tightening`、`units` |
 | `source` | 系统面：来源方法、追补 | `core` |
 | `core`（共用） | 名字与资源定义、校验、审计与事件、记录、列表的共用部分、`Base`、本版不做的路由 | — |
 
-分层（每个包只引用比它低的层）：`replay` → `entities`、`units` → `tightening` → `core`；`source` → `core`。
+分层（每个包只引用比它低的层）：`replay` → `entities`、`units` → `positions` → `tightening` → `core`；`source` → `core`。
 
 ## 共同的写法
 
 - 每个模块的函数先收 `m *core.Base`（运行时、证据写入器、部署、实现实例、默认时区），入口包的 `Module` 持有它、登记时适配。
-- 收紧授权的调整（部门退役、移出上级、法人暂停或退役）先在事务外写意图证据，再在事务里提交并在锁下得出结论，没收紧就取消（`tightening` 的 `Intent`、`Conclude`、`Settle`）；`m.Ev` 为空时不写证据（只在单测模块时）。
+- 收紧授权的调整（部门退役、移出上级、法人暂停或退役、岗位退役）先在事务外写意图证据，再在事务里提交并在锁下得出结论，没收紧就取消（`tightening` 的 `Intent`、`Conclude`、`Settle`）；`m.Ev` 为空时不写证据（只在单测模块时）。
 - 树的每次结构变化先锁法人的行，串行；写入、审计（`core.Change`）与发件表（`core.Emit`）同一个事务。
 
 ## 测试

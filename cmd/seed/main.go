@@ -8,7 +8,9 @@
 //   - legal entities in five countries, three usable, one suspended and one retired;
 //   - a department tree under each usable one: CN01 with more than one page (53 units: sales regions with city teams,
 //     and the other departments), ES01 and US01 with 21 each; one retired unit and one moved unit (two paths in its
-//     history) in each.
+//     history) in each;
+//   - positions (3.0.34): a head (-MGR) in every active unit, a sales representative (-REP) in every sales team (CN01
+//     more than one page), and one retired position (POS-OLD) in each usable legal entity.
 //
 // Every name starts with 「本地测试」; codes and change keys are the fixed idempotency keys, so a second run creates
 // nothing. HK01 is suspended here; the partner and product seeds open their data under it first (they resume it,
@@ -27,6 +29,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"strings"
 	"time"
 
 	sdkauthz "github.com/brickKit/be-sdk-go/v3/authz"
@@ -82,10 +85,12 @@ func access(base string) client {
 	check(err)
 	a, err := seed.NewAuthz(env("SEED_AUTHZ_URL", "http://localhost:18223"), accounts[env("SEED_ADMIN", "test.alice")].Token, "mdm/org")
 	check(err)
-	read := []sdkauthz.Segment{seed.Segment("mdm.legal_entity", "mdm.legal_entity.read"), seed.Segment("mdm.org_unit", "mdm.org_unit.read")}
+	read := []sdkauthz.Segment{seed.Segment("mdm.legal_entity", "mdm.legal_entity.read"), seed.Segment("mdm.org_unit", "mdm.org_unit.read"),
+		seed.Segment("mdm.org_position", "mdm.org_position.read")}
 	roles, err := a.GrantRoles([]seed.RoleSpec{
 		{Key: "maintain", Name: prefix + "组织维护", To: []string{user, "test.mdm.admin"}, Segments: append(read,
-			seed.Segment("mdm.legal_entity", "mdm.legal_entity.manage"), seed.Segment("mdm.org_unit", "mdm.org_unit.manage"))},
+			seed.Segment("mdm.legal_entity", "mdm.legal_entity.manage"), seed.Segment("mdm.org_unit", "mdm.org_unit.manage"),
+			seed.Segment("mdm.org_position", "mdm.org_position.manage"))},
 		{Key: "read", Name: prefix + "组织只读", To: append([]string{"test.revoked"}, readers...), Segments: read},
 	}, accounts)
 	check(err)
@@ -129,7 +134,7 @@ func main() {
 			c.must("POST", "/api/org/legal-entities/"+ids[e.code]+"/state", map[string]any{"state": e.state})
 		}
 	}
-	units := 0
+	units, positions := 0, 0
 	for _, code := range []string{"CN01", "ES01", "US01"} {
 		le := ids[code]
 		byCode := func(ucode string) string {
@@ -141,19 +146,31 @@ func main() {
 			}
 			return ""
 		}
+		type made struct{ code, name, id string }
+		var active []made // the units that keep positions (every one but PROJ-OLD)
 		unit := func(ucode, name string, parent any) string {
 			units++
 			code, out := c.do("POST", "/api/org/units", map[string]any{"legal_entity_id": le, "parent_id": parent,
 				"code": ucode, "name": prefix + name})
+			id := ""
 			if code == 409 && out["reason"] == "CODE_TAKEN" { // seeded before and changed since (moved): keep it
-				if id := byCode(ucode); id != "" {
-					return id
-				}
+				id = byCode(ucode)
 			}
-			if code != 200 {
+			if id == "" && code != 200 {
 				fail("unit %s: %d %v", ucode, code, out)
 			}
-			return out["id"].(string)
+			if id == "" {
+				id = out["id"].(string)
+			}
+			if ucode != "PROJ-OLD" {
+				active = append(active, made{ucode, name, id})
+			}
+			return id
+		}
+		position := func(unitID, pcode, name string) string {
+			positions++
+			return c.must("POST", "/api/org/positions", map[string]any{"unit_id": unitID, "code": pcode,
+				"name": prefix + name})["id"].(string)
 		}
 		sales := unit("SALES", "销售部", nil)
 		for _, region := range []struct {
@@ -200,7 +217,16 @@ func main() {
 		if h := c.must("GET", "/api/org/units/"+moved+"/path-history", nil); len(h["history"].([]any)) == 1 {
 			c.must("POST", "/api/org/units/"+moved+"/move", map[string]any{"parent_id": byCode("SALES-EAST")})
 		}
+		// positions: a head in every active unit, a sales representative in every sales team, one retired
+		for _, u := range active {
+			position(u.id, u.code+"-MGR", u.name+"负责人")
+			if strings.HasPrefix(u.code, "SALES-") && strings.Count(u.code, "-") == 2 {
+				position(u.id, u.code+"-REP", u.name+"销售代表")
+			}
+		}
+		oldPos := position(byCode("OPS"), "POS-OLD", "旧岗位（已撤销）")
+		c.must("POST", "/api/org/positions/"+oldPos+"/retire", nil)
 	}
-	fmt.Printf("seed mdm/org: %d legal entities, %d units; roles maintain and read, 1 revoked, 1 ended (%s)\n",
-		len(entities), units, time.Now().Format(time.RFC3339))
+	fmt.Printf("seed mdm/org: %d legal entities, %d units, %d positions; roles maintain and read, 1 revoked, 1 ended (%s)\n",
+		len(entities), units, positions, time.Now().Format(time.RFC3339))
 }

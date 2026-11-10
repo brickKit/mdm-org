@@ -11,7 +11,7 @@
 | [`org/`](org/AGENTS.md) | 入口：组件定义与组装（路由、系统面、证据的重放、恢复核对都在这里登记，转给业务模块）；不写业务。`main.go` 与外壳只引用它 |
 | [`internal/`](internal/AGENTS.md) | 业务：下面的模块各一个包；模块之间的依赖表在它的 `AGENTS.md` |
 | [`itest/`](itest/AGENTS.md) | 集成测试，按业务流程分文件；它的 `AGENTS.md` 是测试索引 |
-| `org/migrations/` | 表：法人、部门、路径历史 |
+| `org/migrations/` | 表：法人、部门、路径历史、岗位 |
 | `cmd/seed/` | 种子：角色与授予（含撤销、过期的反例）、法人、部门树（`make seed`） |
 | `contract/` | 本组件发布的契约，单独的模块：`contract/proto/`、`contract/events/`、`contract/openapi.yaml` |
 | `docs/design.md` | 设计：术语、表、状态与规则、命令、事件、实现状态、未决问题 |
@@ -22,6 +22,7 @@
 | --- | --- | --- |
 | [`entities`](internal/entities/AGENTS.md) | 法人：新建、修改、状态、业务日期与时区、列表 | `legal_entity` |
 | [`units`](internal/units/AGENTS.md) | 部门树：新建、改名、移动（子树的路径与历史）、退役、上级、路径历史、列表 | `org_unit`、`org_unit_path_history` |
+| [`positions`](internal/positions/AGENTS.md) | 岗位：新建、改名、退役（收紧）、列表；部门里有启用岗位时部门不能退役 | `org_position` |
 | [`tightening`](internal/tightening/AGENTS.md) | 收紧授权的调整的证据（协议 15）：哪些是收紧、意图、锁下的结论、没收紧就取消 | — |
 | [`replay`](internal/replay/AGENTS.md) | 整套恢复后按证据重放收紧的调整 | — |
 | [`source`](internal/source/AGENTS.md) | 系统面：来源方法、追补（本版不做） | — |
@@ -31,6 +32,7 @@
 | 想改 | 从这里开始 | 然后 |
 | --- | --- | --- |
 | 部门树的规则（无环、移动、退役） | `internal/units` 的 `MoveUnit`、`Repath`、`RetireUnit` | `itest/units_integration_test.go` |
+| 岗位的规则 | `internal/positions` 的 `CreatePosition`、`RetirePosition` | `itest/positions_integration_test.go` |
 | 法人的生命周期 | `internal/entities` 的 `EntityState` | 协议 07 的状态表；收紧的证据在 `internal/tightening` |
 | 加一个用户面路由 | `contract/openapi.yaml` | 处理函数写在它的模块里，在 `org/module.go` 的 `Routes` 登记；`contract_test.go` 核对 |
 | 法人的业务日期、时区 | `internal/entities` 的 `BusinessDate` | `itest/entities_integration_test.go`（Europe/Madrid） |

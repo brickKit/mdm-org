@@ -9,6 +9,7 @@ import (
 	"time"
 
 	core "github.com/brickKit/mdm-org/v3/internal/core"
+	positions "github.com/brickKit/mdm-org/v3/internal/positions"
 	tightening "github.com/brickKit/mdm-org/v3/internal/tightening"
 
 	"github.com/brickKit/be-sdk-go/v3/db"
@@ -360,7 +361,7 @@ func Repath(m *core.Base, ctx context.Context, tx db.Tx, u *core.Unit, path stri
 	return nil
 }
 
-// RetireUnit retires a unit that has no active unit below it.
+// RetireUnit retires a unit that has no active unit below it and no active position in it.
 func RetireUnit(m *core.Base, c *httpx.Context) error {
 	var in struct {
 		Version *int64 `json:"version"`
@@ -381,6 +382,13 @@ func RetireUnit(m *core.Base, c *httpx.Context) error {
 		}
 		if active {
 			return core.ErrState.New("units below it are still active: retire or move them first")
+		}
+		active, err := positions.ActiveIn(ctx, tx, u.ID)
+		if err != nil {
+			return err
+		}
+		if active {
+			return core.ErrState.New("positions in it are still active: retire them first")
 		}
 		u.State = "retired"
 		return nil

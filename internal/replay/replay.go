@@ -8,6 +8,7 @@ import (
 
 	core "github.com/brickKit/mdm-org/v3/internal/core"
 	entities "github.com/brickKit/mdm-org/v3/internal/entities"
+	positions "github.com/brickKit/mdm-org/v3/internal/positions"
 	tightening "github.com/brickKit/mdm-org/v3/internal/tightening"
 	units "github.com/brickKit/mdm-org/v3/internal/units"
 
@@ -16,7 +17,7 @@ import (
 )
 
 // The replay of this member's evidence in a full recovery's step 6 (assembly protocol 15, 6.3; be-protocol
-// P12.19-P12.21): a retirement, a move out from under a unit and a legal entity's status, applied again as recorded,
+// P12.19-P12.21): a unit's or a position's retirement, a move out from under a unit and a legal entity's status, applied again as recorded,
 // without the business preconditions (units still active below, the requester's rights): they held when the change
 // was made. Only the objects must still exist; a move whose new parent now lies below the unit would make a cycle, so
 // it is not applied either (for review). Each writes its event and its audit record as the change did, the recovery
@@ -36,11 +37,44 @@ func Replay(m *core.Base, ctx context.Context, tx db.Tx, rec evidence.Replayed) 
 	case rec.Object.Type == tightening.UnitType && kind == "move_out":
 		parent, _ := rec.Change["parent_after"].(string)
 		return replayUnit(m, ctx, tx, rec.Object.ID, func(u *core.Unit) error { return replayMove(m, ctx, tx, u, parent) })
+	case rec.Object.Type == tightening.PositionType && kind == "retirement":
+		return replayPosition(m, ctx, tx, rec.Object.ID)
 	case rec.Object.Type == tightening.LegalEntityType && kind == "legal_entity_status":
 		state, _ := rec.Change["state"].(string)
 		return replayEntity(m, ctx, tx, rec.Object.ID, state)
 	}
 	return fmt.Errorf("org_tightening of kind %q on %s is not one this version replays", kind, rec.Object.Type)
+}
+
+// replayPosition retires the position again as recorded (3.0.34): under its legal entity's lock, as a creation takes it.
+func replayPosition(m *core.Base, ctx context.Context, tx db.Tx, id string) error {
+	var le string
+	if err := tx.QueryRow(ctx, `SELECT legal_entity_id::text FROM org_position WHERE id = $1`, id).Scan(&le); err != nil {
+		return fmt.Errorf("position %s: %w", id, evidence.ErrDangling)
+	}
+	if _, err := units.Structure(ctx, tx, le); err != nil {
+		return err
+	}
+	cur, err := core.GetPosition(ctx, tx, id, true)
+	if err != nil {
+		return err
+	}
+	if cur.State == "retired" {
+		return nil // already so: nothing to write
+	}
+	next := cur
+	next.State = "retired"
+	if err := positions.WritePosition(ctx, tx, next); err != nil {
+		return err
+	}
+	out, err := core.GetPosition(ctx, tx, id, false)
+	if err != nil {
+		return err
+	}
+	if err := core.Emit(m, ctx, tx, core.PositionChanged, out.ID, out.Version, out); err != nil {
+		return err
+	}
+	return core.Change(m, ctx, tx, replayActor, core.OpPosEdit, core.Positions, out.ID, out)
 }
 
 // replayUnit locks the unit's tree and the unit, applies the change and writes, publishes and audits it.

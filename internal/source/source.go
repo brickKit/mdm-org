@@ -29,6 +29,10 @@ var aggregates = map[orgv3.Aggregate]aggregate{
 		v, err := core.ScanUnit(r)
 		return v.ID, v.Version, v, err
 	}},
+	orgv3.Aggregate_AGGREGATE_POSITION: {"org_position", core.PositionCols, func(r pgx.Row) (string, int64, any, error) {
+		v, err := core.ScanPosition(r)
+		return v.ID, v.Version, v, err
+	}},
 }
 
 func stamp(m *core.Base, ctx context.Context, tx db.Tx) (*orgv3.Stamp, error) {

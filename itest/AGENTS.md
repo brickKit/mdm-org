@@ -19,7 +19,8 @@
 | `units_integration_test.go` | `tree`、`treeRules` | 部门树与路径；移动后下面的路径跟着变、旧路径可追溯、上级；不成环、有启用的下级不能退役 | `units` |
 | `lists_integration_test.go` | `lists` | 部门按法人、按路径、按游标；法人的关键字（拼音首字母） | `units`、`entities` |
 | `outbox_integration_test.go` | `outbox` | 移动发了被移动的部门与下面的每个部门 | `units` |
-| `entities_integration_test.go` | `notInThisVersion` | 岗位等本版不做 | 入口 |
+| `positions_integration_test.go` | `positions` | 岗位：在启用的部门里建、代码在法人内唯一、同样的新建答原来的；改名新版本；列表；没有授予看不见；部门里有启用的岗位不能退役；退役先写意图再写结论、整套恢复后重放；事件与来源读取 | `positions`、`units`、`tightening`、`replay`、`source` |
+| `entities_integration_test.go` | `notInThisVersion` | 汇报关系等本版不做 | 入口 |
 | `source_integration_test.go` | `source` | 系统面（mTLS）：`Read`（存在、已清除、不是身份）、戳、`Snapshot` 分页、追补本版不做 | `source` |
 | `evidence_integration_test.go` | `evidence`、`replay` | 收紧的证据：意图、结论、取消、证据存储停着时的本地等待（`evidenceStory`）；整套恢复后的重放（`replayStory`） | `tightening`、`replay` |
 | `recoverycheck_integration_test.go` | `recoveryChecks` | 整套恢复的核对：法人按版本答“还在不在”（`checksStory`） | 入口 `org/checks.go` |
