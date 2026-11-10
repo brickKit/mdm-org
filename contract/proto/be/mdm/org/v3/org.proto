@@ -30,6 +30,8 @@ enum Aggregate {
   AGGREGATE_LEGAL_ENTITY = 1;
   // mdm.org_unit.changed.v1
   AGGREGATE_ORG_UNIT = 2;
+  // mdm.org_position.changed.v1
+  AGGREGATE_POSITION = 3;
 }
 
 // Stamp is what every answer declares about the source (protocol 02, S3 and step 3).

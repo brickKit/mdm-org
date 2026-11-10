@@ -12,6 +12,7 @@ class Aggregate(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     AGGREGATE_UNSPECIFIED: _ClassVar[Aggregate]
     AGGREGATE_LEGAL_ENTITY: _ClassVar[Aggregate]
     AGGREGATE_ORG_UNIT: _ClassVar[Aggregate]
+    AGGREGATE_POSITION: _ClassVar[Aggregate]
 
 class ReadState(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     __slots__ = ()
@@ -22,6 +23,7 @@ class ReadState(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
 AGGREGATE_UNSPECIFIED: Aggregate
 AGGREGATE_LEGAL_ENTITY: Aggregate
 AGGREGATE_ORG_UNIT: Aggregate
+AGGREGATE_POSITION: Aggregate
 READ_STATE_UNSPECIFIED: ReadState
 READ_STATE_EXISTS: ReadState
 READ_STATE_TOMBSTONE: ReadState

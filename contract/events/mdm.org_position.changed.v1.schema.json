@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://brickkit.dev/mdm-org/events/mdm.org_position.changed.v1.schema.json",
+  "title": "mdm.org_position.changed.v1",
+  "description": "A position's complete current state; the record ID is its UUIDv7. A position belongs to one unit and never moves: a position in another unit is a new position. Appointments hang on the legal entity, the unit and the position (mdm/employee): a retired position ends them there. Also the data of SourceService for AGGREGATE_POSITION.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "legal_entity_id", "unit_id", "code", "name", "names", "state", "version", "updated_at"],
+  "properties": {
+    "id": {"type": "string", "format": "uuid"},
+    "legal_entity_id": {"type": "string", "format": "uuid"},
+    "unit_id": {"type": "string", "format": "uuid", "description": "the unit the position belongs to"},
+    "code": {"type": "string", "pattern": "^[A-Z0-9][A-Z0-9_-]{0,31}$", "description": "unique within the legal entity"},
+    "name": {"type": "string", "minLength": 1},
+    "names": {"type": "object", "additionalProperties": {"type": "string", "minLength": 1}},
+    "state": {"enum": ["active", "retired"]},
+    "version": {"type": "integer", "minimum": 1},
+    "updated_at": {"type": "string", "format": "date-time"}
+  }
+}

@@ -34,6 +34,8 @@ const (
 	Aggregate_AGGREGATE_LEGAL_ENTITY Aggregate = 1
 	// mdm.org_unit.changed.v1
 	Aggregate_AGGREGATE_ORG_UNIT Aggregate = 2
+	// mdm.org_position.changed.v1
+	Aggregate_AGGREGATE_POSITION Aggregate = 3
 )
 
 // Enum value maps for Aggregate.
@@ -42,11 +44,13 @@ var (
 		0: "AGGREGATE_UNSPECIFIED",
 		1: "AGGREGATE_LEGAL_ENTITY",
 		2: "AGGREGATE_ORG_UNIT",
+		3: "AGGREGATE_POSITION",
 	}
 	Aggregate_value = map[string]int32{
 		"AGGREGATE_UNSPECIFIED":  0,
 		"AGGREGATE_LEGAL_ENTITY": 1,
 		"AGGREGATE_ORG_UNIT":     2,
+		"AGGREGATE_POSITION":     3,
 	}
 )
 
@@ -793,11 +797,12 @@ const file_be_mdm_org_v3_org_proto_rawDesc = "" +
 	"\x0fCatchUpResponse\x12\x12\n" +
 	"\x04rows\x18\x01 \x03(\fR\x04rows\x12\x1b\n" +
 	"\tnext_page\x18\x02 \x01(\tR\bnextPage\x12*\n" +
-	"\x05stamp\x18\x03 \x01(\v2\x14.be.mdm.org.v3.StampR\x05stamp*Z\n" +
+	"\x05stamp\x18\x03 \x01(\v2\x14.be.mdm.org.v3.StampR\x05stamp*r\n" +
 	"\tAggregate\x12\x19\n" +
 	"\x15AGGREGATE_UNSPECIFIED\x10\x00\x12\x1a\n" +
 	"\x16AGGREGATE_LEGAL_ENTITY\x10\x01\x12\x16\n" +
-	"\x12AGGREGATE_ORG_UNIT\x10\x02*o\n" +
+	"\x12AGGREGATE_ORG_UNIT\x10\x02\x12\x16\n" +
+	"\x12AGGREGATE_POSITION\x10\x03*o\n" +
 	"\tReadState\x12\x1a\n" +
 	"\x16READ_STATE_UNSPECIFIED\x10\x00\x12\x15\n" +
 	"\x11READ_STATE_EXISTS\x10\x01\x12\x18\n" +
