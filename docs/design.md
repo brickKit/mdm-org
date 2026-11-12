@@ -88,6 +88,8 @@
 
 ## 实现状态
 
+3.0.36：{version}：be-sdk-go alpha.122（全系统同一个 SDK 版本；SDK 加了流程内核，线协议第 17 章，装配项目阶段计划 C7 的 P3）；行为不变。
+
 3.0.35：be-sdk-go alpha.121（全系统同一个 SDK 版本；sectest 的授权组件替身答 CheckLinkChange 与 Administrators）
 
 3.0.34：岗位（`internal/positions`，迁移 `0002_positions`）：新建、改名、退役（收紧的意图证据，整套恢复后按证据重放）、读取与列表；部门里还有启用岗位时不能退役；来源方法多一种聚合；契约 `contract/v3.0.0-alpha.3`。为 `mdm/employee` 的任职（装配项目阶段计划 C1 的 E0b）。
