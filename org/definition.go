@@ -20,7 +20,7 @@ import (
 
 // Identity of the component.
 const (
-	Version  = "3.0.44"
+	Version  = "3.0.45"
 	GRPCPort = 9093
 )
 
